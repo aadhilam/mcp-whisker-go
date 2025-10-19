@@ -56,7 +56,7 @@ go install ./cmd/server
 - kubectl configured with access to your Kubernetes cluster
 - Calico Whisker deployed in the cluster (calico-system namespace)
 
-## Configuration
+### Configuration
 
 The service expects:
 - Calico Whisker service running in `calico-system` namespace
