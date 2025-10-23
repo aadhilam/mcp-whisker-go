@@ -1,0 +1,38 @@
+      policies: {
+        enforced: [
+          {
+            kind: "Profile",
+            name: "kns.yaobank",
+            namespace: "—",
+            tier: "—",
+            action: "Allow",
+            policy_index: "0",
+            rule_index: "0",
+            triggered_by: "—"
+          }
+        ],
+        pending: [
+          {
+            kind: "EndOfTier",
+            name: "—",
+            namespace: "—",
+            tier: "default",
+            action: "Deny",
+            policy_index: "0",
+            rule_index: "–1",
+            triggered_by: "summary-policy"
+          }
+        ],
+        trigger_nested_details: [
+          {
+            kind: "StagedNetworkPolicy",
+            name: "summary-policy",
+            namespace: "yaobank",
+            tier: "default",
+            action: "ActionUnspecified",
+            policy_index: "0",
+            rule_index: "0",
+            trigger: "—"
+          }
+        ]
+      },

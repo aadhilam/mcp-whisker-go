@@ -40,6 +40,7 @@ in Kubernetes environments.`,
 	// Add commands
 	rootCmd.AddCommand(setupPortForwardCmd())
 	rootCmd.AddCommand(getFlowsCmd())
+	rootCmd.AddCommand(getAggregatedFlowsCmd())
 	rootCmd.AddCommand(analyzeNamespaceCmd())
 	rootCmd.AddCommand(analyzeBlockedCmd())
 	rootCmd.AddCommand(checkServiceCmd())
@@ -122,6 +123,58 @@ func getFlowsCmd() *cobra.Command {
 			return nil
 		},
 	}
+	return cmd
+}
+
+func getAggregatedFlowsCmd() *cobra.Command {
+	var startTime, endTime string
+	var markdown bool
+
+	cmd := &cobra.Command{
+		Use:   "get-aggregated-flows",
+		Short: "Get aggregated and categorized flow logs with traffic analysis",
+		Long: `Retrieve flow logs from Whisker service and present them in an aggregated format
+with traffic categorization, top sources/destinations, namespace activity, and security posture.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			kubeconfig := getKubeconfigPath()
+			service := whisker.NewService(kubeconfig)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var startTimePtr, endTimePtr *string
+			if startTime != "" {
+				startTimePtr = &startTime
+			}
+			if endTime != "" {
+				endTimePtr = &endTime
+			}
+
+			report, err := service.GetAggregatedFlowReport(ctx, startTimePtr, endTimePtr)
+			if err != nil {
+				return fmt.Errorf("failed to get aggregated flow logs: %w", err)
+			}
+
+			if markdown {
+				// Output as formatted Markdown
+				output := service.FormatAggregateReportAsMarkdown(report)
+				fmt.Println(output)
+			} else {
+				// Output as JSON
+				output, err := json.MarshalIndent(report, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal report: %w", err)
+				}
+				fmt.Println(string(output))
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&startTime, "start-time", "", "Start time filter (ISO8601 format)")
+	cmd.Flags().StringVar(&endTime, "end-time", "", "End time filter (ISO8601 format)")
+	cmd.Flags().BoolVarP(&markdown, "markdown", "m", true, "Output in Markdown format (default: true)")
 	return cmd
 }
 

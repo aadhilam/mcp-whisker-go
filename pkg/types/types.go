@@ -4,23 +4,23 @@ import "time"
 
 // FlowLog represents a Calico Whisker flow log entry
 type FlowLog struct {
-	StartTime        string    `json:"start_time"`
-	EndTime          string    `json:"end_time"`
-	Action           string    `json:"action"`
-	SourceName       string    `json:"source_name"`
-	SourceNamespace  string    `json:"source_namespace"`
-	SourceLabels     string    `json:"source_labels"`
-	DestName         string    `json:"dest_name"`
-	DestNamespace    string    `json:"dest_namespace"`
-	DestLabels       string    `json:"dest_labels"`
-	Protocol         string    `json:"protocol"`
-	DestPort         int       `json:"dest_port"`
-	Reporter         string    `json:"reporter"`
-	Policies         Policies  `json:"policies"`
-	PacketsIn        int64     `json:"packets_in"`
-	PacketsOut       int64     `json:"packets_out"`
-	BytesIn          int64     `json:"bytes_in"`
-	BytesOut         int64     `json:"bytes_out"`
+	StartTime       string   `json:"start_time"`
+	EndTime         string   `json:"end_time"`
+	Action          string   `json:"action"`
+	SourceName      string   `json:"source_name"`
+	SourceNamespace string   `json:"source_namespace"`
+	SourceLabels    string   `json:"source_labels"`
+	DestName        string   `json:"dest_name"`
+	DestNamespace   string   `json:"dest_namespace"`
+	DestLabels      string   `json:"dest_labels"`
+	Protocol        string   `json:"protocol"`
+	DestPort        int      `json:"dest_port"`
+	Reporter        string   `json:"reporter"`
+	Policies        Policies `json:"policies"`
+	PacketsIn       int64    `json:"packets_in"`
+	PacketsOut      int64    `json:"packets_out"`
+	BytesIn         int64    `json:"bytes_in"`
+	BytesOut        int64    `json:"bytes_out"`
 }
 
 // Policy represents a Calico network policy
@@ -48,13 +48,13 @@ type FlowLogsResponse struct {
 
 // FlowSummary represents aggregated flow information
 type FlowSummary struct {
-	Source           FlowEndpoint     `json:"source"`
-	Destination      FlowEndpoint     `json:"destination"`
-	Connection       ConnectionInfo   `json:"connection"`
-	Enforcement      EnforcementInfo  `json:"enforcement"`
-	Traffic          TrafficInfo      `json:"traffic"`
-	TimeRange        TimeRangeInfo    `json:"timeRange"`
-	Status           string           `json:"status"`
+	Source      FlowEndpoint    `json:"source"`
+	Destination FlowEndpoint    `json:"destination"`
+	Connection  ConnectionInfo  `json:"connection"`
+	Enforcement EnforcementInfo `json:"enforcement"`
+	Traffic     TrafficInfo     `json:"traffic"`
+	TimeRange   TimeRangeInfo   `json:"timeRange"`
+	Status      string          `json:"status"`
 }
 
 // FlowEndpoint represents source or destination information
@@ -111,18 +111,18 @@ type TimeRangeInfo struct {
 
 // NamespaceFlowSummary represents the complete namespace analysis
 type NamespaceFlowSummary struct {
-	Namespace      string           `json:"namespace"`
-	Analysis       AnalysisInfo     `json:"analysis"`
-	Statistics     StatisticsInfo   `json:"statistics"`
-	Flows          []FlowSummary    `json:"flows"`
-	SecurityAlerts *SecurityAlerts  `json:"securityAlerts,omitempty"`
+	Namespace      string          `json:"namespace"`
+	Analysis       AnalysisInfo    `json:"analysis"`
+	Statistics     StatisticsInfo  `json:"statistics"`
+	Flows          []FlowSummary   `json:"flows"`
+	SecurityAlerts *SecurityAlerts `json:"securityAlerts,omitempty"`
 }
 
 // AnalysisInfo represents analysis metadata
 type AnalysisInfo struct {
-	TotalUniqueFlows int              `json:"totalUniqueFlows"`
-	TotalLogEntries  int              `json:"totalLogEntries"`
-	TimeWindow       TimeWindowInfo   `json:"timeWindow"`
+	TotalUniqueFlows int            `json:"totalUniqueFlows"`
+	TotalLogEntries  int            `json:"totalLogEntries"`
+	TimeWindow       TimeWindowInfo `json:"timeWindow"`
 }
 
 // TimeWindowInfo represents the analysis time window
@@ -175,25 +175,25 @@ type ServiceStatus struct {
 
 // BlockedFlowAnalysis represents analysis of blocked flows
 type BlockedFlowAnalysis struct {
-	Namespace        string                   `json:"namespace"`
-	Analysis         BlockedFlowAnalysisInfo  `json:"analysis"`
-	BlockedFlows     []BlockedFlowDetail      `json:"blockedFlows"`
-	SecurityInsights SecurityInsights         `json:"securityInsights"`
+	Namespace        string                  `json:"namespace"`
+	Analysis         BlockedFlowAnalysisInfo `json:"analysis"`
+	BlockedFlows     []BlockedFlowDetail     `json:"blockedFlows"`
+	SecurityInsights SecurityInsights        `json:"securityInsights"`
 }
 
 // BlockedFlowAnalysisInfo represents metadata about blocked flow analysis
 type BlockedFlowAnalysisInfo struct {
-	TotalBlockedFlows          int            `json:"totalBlockedFlows"`
-	UniqueBlockedConnections   int            `json:"uniqueBlockedConnections"`
-	TimeWindow                 TimeWindowInfo `json:"timeWindow"`
+	TotalBlockedFlows        int            `json:"totalBlockedFlows"`
+	UniqueBlockedConnections int            `json:"uniqueBlockedConnections"`
+	TimeWindow               TimeWindowInfo `json:"timeWindow"`
 }
 
 // BlockedFlowDetail represents detailed analysis of a blocked flow
 type BlockedFlowDetail struct {
-	Flow             BlockedFlowInfo    `json:"flow"`
-	Traffic          TrafficInfo        `json:"traffic"`
-	BlockingPolicies []BlockingPolicy   `json:"blockingPolicies"`
-	Analysis         FlowAnalysis       `json:"analysis"`
+	Flow             BlockedFlowInfo  `json:"flow"`
+	Traffic          TrafficInfo      `json:"traffic"`
+	BlockingPolicies []BlockingPolicy `json:"blockingPolicies"`
+	Analysis         FlowAnalysis     `json:"analysis"`
 }
 
 // BlockedFlowInfo represents information about a blocked flow
@@ -209,10 +209,10 @@ type BlockedFlowInfo struct {
 
 // BlockingPolicy represents a policy that blocked traffic
 type BlockingPolicy struct {
-	TriggerPolicy   *Policy `json:"triggerPolicy"`
-	PolicyYAML      *string `json:"policyYaml"`
-	Error           *string `json:"error,omitempty"`
-	BlockingReason  string  `json:"blockingReason"`
+	TriggerPolicy  *Policy `json:"triggerPolicy"`
+	PolicyYAML     *string `json:"policyYaml"`
+	Error          *string `json:"error,omitempty"`
+	BlockingReason string  `json:"blockingReason"`
 }
 
 // FlowAnalysis represents analysis results for a flow
@@ -225,4 +225,70 @@ type FlowAnalysis struct {
 type SecurityInsights struct {
 	Message         string   `json:"message"`
 	Recommendations []string `json:"recommendations"`
+}
+
+// FlowAggregateReport represents a comprehensive aggregated flow analysis report
+type FlowAggregateReport struct {
+	TimeRange         string                  `json:"timeRange"`
+	TrafficOverview   []AggregatedFlowEntry   `json:"trafficOverview"`
+	TrafficByCategory []TrafficCategory       `json:"trafficByCategory"`
+	TopTrafficSources []TopTrafficEntity      `json:"topTrafficSources"`
+	TopTrafficDest    []TopTrafficEntity      `json:"topTrafficDestinations"`
+	NamespaceActivity []NamespaceActivityInfo `json:"namespaceActivity"`
+	SecurityPosture   SecurityPostureInfo     `json:"securityPosture"`
+}
+
+// AggregatedFlowEntry represents an aggregated flow entry in the traffic overview
+type AggregatedFlowEntry struct {
+	Source          string `json:"source"`
+	SourceNamespace string `json:"sourceNamespace"`
+	Destination     string `json:"destination"`
+	DestNamespace   string `json:"destNamespace"`
+	Protocol        string `json:"protocol"`
+	Port            int    `json:"port"`
+	Action          string `json:"action"`
+	PacketsIn       int64  `json:"packetsIn"`
+	PacketsOut      int64  `json:"packetsOut"`
+	BytesIn         int64  `json:"bytesIn"`
+	BytesOut        int64  `json:"bytesOut"`
+	PacketsInStr    string `json:"packetsInStr"`
+	PacketsOutStr   string `json:"packetsOutStr"`
+	BytesInStr      string `json:"bytesInStr"`
+	BytesOutStr     string `json:"bytesOutStr"`
+	PrimaryPolicy   string `json:"primaryPolicy"`
+}
+
+// TrafficCategory represents a categorized traffic type
+type TrafficCategory struct {
+	Category    string `json:"category"`
+	Count       int    `json:"count"`
+	Description string `json:"description"`
+}
+
+// TopTrafficEntity represents a top traffic source or destination
+type TopTrafficEntity struct {
+	Name            string `json:"name"`
+	TotalFlows      int    `json:"totalFlows"`
+	PrimaryActivity string `json:"primaryActivity"`
+}
+
+// NamespaceActivityInfo represents traffic activity for a namespace
+type NamespaceActivityInfo struct {
+	Namespace          string `json:"namespace"`
+	IngressFlows       int    `json:"ingressFlows"`
+	EgressFlows        int    `json:"egressFlows"`
+	TotalTrafficVolume string `json:"totalTrafficVolume"`
+	BytesIn            int64  `json:"bytesIn"`
+	BytesOut           int64  `json:"bytesOut"`
+}
+
+// SecurityPostureInfo represents overall security posture
+type SecurityPostureInfo struct {
+	TotalFlows        int      `json:"totalFlows"`
+	AllowedFlows      int      `json:"allowedFlows"`
+	AllowedPercentage float64  `json:"allowedPercentage"`
+	DeniedFlows       int      `json:"deniedFlows"`
+	DeniedPercentage  float64  `json:"deniedPercentage"`
+	ActivePolicies    int      `json:"activePolicies"`
+	UniquePolicyNames []string `json:"uniquePolicyNames"`
 }
