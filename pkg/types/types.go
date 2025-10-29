@@ -59,10 +59,11 @@ type FlowSummary struct {
 
 // FlowEndpoint represents source or destination information
 type FlowEndpoint struct {
-	Name      string   `json:"name"`
-	Namespace string   `json:"namespace"`
-	Action    string   `json:"action"`
-	Policies  []string `json:"policies"`
+	Name            string   `json:"name"`
+	Namespace       string   `json:"namespace"`
+	Action          string   `json:"action"`
+	Policies        []string `json:"policies"`
+	PendingPolicies []string `json:"pendingPolicies,omitempty"`
 }
 
 // ConnectionInfo represents connection details
@@ -73,20 +74,23 @@ type ConnectionInfo struct {
 
 // EnforcementInfo represents policy enforcement details
 type EnforcementInfo struct {
-	TotalPolicies  int            `json:"totalPolicies"`
-	UniquePolicies []string       `json:"uniquePolicies"`
-	PolicyDetails  []PolicyDetail `json:"policyDetails"`
+	TotalPolicies        int            `json:"totalPolicies"`
+	UniquePolicies       []string       `json:"uniquePolicies"`
+	PolicyDetails        []PolicyDetail `json:"policyDetails"`
+	TotalPendingPolicies int            `json:"totalPendingPolicies"`
+	PendingPolicyDetails []PolicyDetail `json:"pendingPolicyDetails,omitempty"`
 }
 
 // PolicyDetail represents detailed policy information
 type PolicyDetail struct {
-	Name        string `json:"name"`
-	Namespace   string `json:"namespace"`
-	Kind        string `json:"kind"`
-	Tier        string `json:"tier"`
-	Action      string `json:"action"`
-	PolicyIndex int    `json:"policyIndex"`
-	RuleIndex   int    `json:"ruleIndex"`
+	Name        string        `json:"name"`
+	Namespace   string        `json:"namespace"`
+	Kind        string        `json:"kind"`
+	Tier        string        `json:"tier"`
+	Action      string        `json:"action"`
+	PolicyIndex int           `json:"policyIndex"`
+	RuleIndex   int           `json:"ruleIndex"`
+	Trigger     *PolicyDetail `json:"trigger,omitempty"`
 }
 
 // TrafficInfo represents traffic statistics
@@ -209,10 +213,10 @@ type BlockedFlowInfo struct {
 
 // BlockingPolicy represents a policy that blocked traffic
 type BlockingPolicy struct {
-	TriggerPolicy  *Policy `json:"triggerPolicy"`
-	PolicyYAML     *string `json:"policyYaml"`
-	Error          *string `json:"error,omitempty"`
-	BlockingReason string  `json:"blockingReason"`
+	TriggerPolicy  *PolicyDetail `json:"triggerPolicy"`
+	PolicyYAML     *string       `json:"policyYaml,omitempty"`
+	Error          *string       `json:"error,omitempty"`
+	BlockingReason string        `json:"blockingReason"`
 }
 
 // FlowAnalysis represents analysis results for a flow
@@ -284,11 +288,13 @@ type NamespaceActivityInfo struct {
 
 // SecurityPostureInfo represents overall security posture
 type SecurityPostureInfo struct {
-	TotalFlows        int      `json:"totalFlows"`
-	AllowedFlows      int      `json:"allowedFlows"`
-	AllowedPercentage float64  `json:"allowedPercentage"`
-	DeniedFlows       int      `json:"deniedFlows"`
-	DeniedPercentage  float64  `json:"deniedPercentage"`
-	ActivePolicies    int      `json:"activePolicies"`
-	UniquePolicyNames []string `json:"uniquePolicyNames"`
+	TotalFlows               int      `json:"totalFlows"`
+	AllowedFlows             int      `json:"allowedFlows"`
+	AllowedPercentage        float64  `json:"allowedPercentage"`
+	DeniedFlows              int      `json:"deniedFlows"`
+	DeniedPercentage         float64  `json:"deniedPercentage"`
+	ActivePolicies           int      `json:"activePolicies"`
+	UniquePolicyNames        []string `json:"uniquePolicyNames"`
+	PendingPolicies          int      `json:"pendingPolicies"`
+	UniquePendingPolicyNames []string `json:"uniquePendingPolicyNames,omitempty"`
 }

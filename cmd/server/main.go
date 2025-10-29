@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/aadhilam/mcp-whisker-go/internal/kubernetes"
@@ -30,6 +31,31 @@ func main() {
 		Long: `A Go implementation of the Calico Whisker MCP Server that provides 
 Model Context Protocol functionality for analyzing Calico Whisker flow logs 
 in Kubernetes environments.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Default to running as MCP server when no subcommand provided
+			kubeconfig := getKubeconfigPath()
+			server := mcp.NewMCPServer(kubeconfig)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Handle graceful shutdown
+			go func() {
+				sigChan := make(chan os.Signal, 1)
+				signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+				<-sigChan
+				cancel()
+			}()
+
+			// Log to stderr only, never to stdout (MCP uses stdout for JSON-RPC)
+			log.SetOutput(os.Stderr)
+			if debug {
+				log.Printf("MCP server starting with kubeconfig: %s\n", kubeconfig)
+			}
+
+			return server.Run(ctx)
+		},
+		SilenceUsage: true, // Don't show usage on error
 	}
 
 	// Add persistent flags
@@ -276,7 +302,7 @@ func checkServiceCmd() *cobra.Command {
 func serverCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "server",
-		Short: "Run as MCP server",
+		Short: "Run as MCP server (explicit command, same as default behavior)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			kubeconfig := getKubeconfigPath()
 			server := mcp.NewMCPServer(kubeconfig)
@@ -292,7 +318,12 @@ func serverCmd() *cobra.Command {
 				cancel()
 			}()
 
-			fmt.Fprintf(os.Stderr, "MCP server starting with kubeconfig: %s\n", kubeconfig)
+			// Log to stderr only
+			log.SetOutput(os.Stderr)
+			if debug {
+				log.Printf("MCP server starting with kubeconfig: %s\n", kubeconfig)
+			}
+
 			return server.Run(ctx)
 		},
 	}
@@ -301,6 +332,12 @@ func serverCmd() *cobra.Command {
 
 func getKubeconfigPath() string {
 	if kubeconfigPath != "" {
+		// Expand tilde (~) to home directory
+		if strings.HasPrefix(kubeconfigPath, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				return filepath.Join(home, kubeconfigPath[2:])
+			}
+		}
 		return kubeconfigPath
 	}
 

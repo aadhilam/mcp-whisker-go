@@ -66,6 +66,8 @@ func NewMCPServer(kubeconfigPath string) *MCPServer {
 
 // Run starts the MCP server
 func (s *MCPServer) Run(ctx context.Context) error {
+	// Ensure log output goes to stderr to avoid corrupting JSON-RPC on stdout
+	log.SetOutput(os.Stderr)
 	log.Println("Starting MCP server...")
 
 	scanner := bufio.NewScanner(s.input)
@@ -448,6 +450,7 @@ func (s *MCPServer) getFlowLogs(ctx context.Context, args map[string]interface{}
 	}
 
 	if setupPortForward {
+		log.Printf("[get_flow_logs] Setting up port-forward...")
 		if err := s.manager.Setup(ctx); err != nil {
 			return "", fmt.Errorf("failed to setup port-forward: %w", err)
 		}
@@ -473,6 +476,7 @@ func (s *MCPServer) getAggregatedFlowLogs(ctx context.Context, args map[string]i
 	}
 
 	if setupPortForward {
+		log.Printf("[get_aggregated_flow_logs] Setting up port-forward...")
 		if err := s.manager.Setup(ctx); err != nil {
 			return "", fmt.Errorf("failed to setup port-forward: %w", err)
 		}

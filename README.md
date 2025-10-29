@@ -31,10 +31,22 @@ go install ./cmd/server
 
 ## Usage
 
-### As MCP Server
+### As MCP Server (Default)
+
+The binary runs as an MCP server by default, using stdin/stdout for JSON-RPC communication:
+
 ```bash
+# Run as MCP server (default behavior)
 ./mcp-whisker-go --kubeconfig ~/.kube/config
+
+# Or explicitly use the 'server' command
+./mcp-whisker-go server --kubeconfig ~/.kube/config
 ```
+
+**Note:** When running as an MCP server:
+- All JSON-RPC messages use stdout
+- All logs and diagnostics go to stderr
+- No help text or banners are shown
 
 ### CLI Commands
 ```bash

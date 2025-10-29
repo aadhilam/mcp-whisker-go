@@ -177,6 +177,7 @@ func (s *Service) generateFlowSummary(namespace string, logs []types.FlowLog) *t
 				sourcePolicies:   make(map[string]bool),
 				destPolicies:     make(map[string]bool),
 				enforcedPolicies: []types.PolicyDetail{},
+				pendingPolicies:  []types.PolicyDetail{},
 			}
 
 			s.aggregatePolicies(flow, &log)
@@ -327,8 +328,11 @@ func (s *Service) extractBlockingPolicies(ctx context.Context, log *types.FlowLo
 		if pendingPolicy.Trigger != nil && pendingPolicy.Trigger.Name != "" {
 			policyYAML := s.retrievePolicyDetails(ctx, pendingPolicy.Trigger)
 
+			// Convert Policy to PolicyDetail to avoid circular references
+			triggerDetail := s.convertPolicyToDetail(pendingPolicy.Trigger)
+
 			blockingPolicy := types.BlockingPolicy{
-				TriggerPolicy:  pendingPolicy.Trigger,
+				TriggerPolicy:  &triggerDetail,
 				PolicyYAML:     policyYAML,
 				BlockingReason: s.getBlockingReason(pendingPolicy.Action),
 			}
@@ -342,8 +346,11 @@ func (s *Service) extractBlockingPolicies(ctx context.Context, log *types.FlowLo
 		if enforcedPolicy.Action == "Deny" && enforcedPolicy.Trigger != nil && enforcedPolicy.Trigger.Name != "" {
 			policyYAML := s.retrievePolicyDetails(ctx, enforcedPolicy.Trigger)
 
+			// Convert Policy to PolicyDetail to avoid circular references
+			triggerDetail := s.convertPolicyToDetail(enforcedPolicy.Trigger)
+
 			blockingPolicy := types.BlockingPolicy{
-				TriggerPolicy:  enforcedPolicy.Trigger,
+				TriggerPolicy:  &triggerDetail,
 				PolicyYAML:     policyYAML,
 				BlockingReason: "Enforced deny rule",
 			}
@@ -436,19 +443,34 @@ type aggregatedFlow struct {
 	sourcePolicies   map[string]bool
 	destPolicies     map[string]bool
 	enforcedPolicies []types.PolicyDetail
+	pendingPolicies  []types.PolicyDetail
+}
+
+// convertPolicyToDetail converts a Policy to PolicyDetail, preserving trigger chains
+func (s *Service) convertPolicyToDetail(policy *types.Policy) types.PolicyDetail {
+	detail := types.PolicyDetail{
+		Name:        policy.Name,
+		Namespace:   policy.Namespace,
+		Kind:        policy.Kind,
+		Tier:        policy.Tier,
+		Action:      policy.Action,
+		PolicyIndex: policy.PolicyIndex,
+		RuleIndex:   policy.RuleIndex,
+	}
+
+	// Recursively convert trigger if present
+	if policy.Trigger != nil {
+		triggerDetail := s.convertPolicyToDetail(policy.Trigger)
+		detail.Trigger = &triggerDetail
+	}
+
+	return detail
 }
 
 func (s *Service) aggregatePolicies(flow *aggregatedFlow, log *types.FlowLog) {
+	// Process enforced policies
 	for _, policy := range log.Policies.Enforced {
-		policyDetail := types.PolicyDetail{
-			Name:        policy.Name,
-			Namespace:   policy.Namespace,
-			Kind:        policy.Kind,
-			Tier:        policy.Tier,
-			Action:      policy.Action,
-			PolicyIndex: policy.PolicyIndex,
-			RuleIndex:   policy.RuleIndex,
-		}
+		policyDetail := s.convertPolicyToDetail(&policy)
 		flow.enforcedPolicies = append(flow.enforcedPolicies, policyDetail)
 
 		policyName := fmt.Sprintf("%s (%s)", policy.Name, policy.Namespace)
@@ -457,6 +479,12 @@ func (s *Service) aggregatePolicies(flow *aggregatedFlow, log *types.FlowLog) {
 		} else if log.Reporter == "Dst" {
 			flow.destPolicies[policyName] = true
 		}
+	}
+
+	// Process pending policies
+	for _, policy := range log.Policies.Pending {
+		policyDetail := s.convertPolicyToDetail(&policy)
+		flow.pendingPolicies = append(flow.pendingPolicies, policyDetail)
 	}
 }
 
@@ -501,6 +529,13 @@ func (s *Service) convertToFlowSummary(flow *aggregatedFlow) types.FlowSummary {
 	}
 	sort.Strings(uniquePolicySlice)
 
+	// Process pending policies for display
+	pendingPolicyNames := make([]string, 0, len(flow.pendingPolicies))
+	for _, policy := range flow.pendingPolicies {
+		pendingPolicyNames = append(pendingPolicyNames, fmt.Sprintf("⏳ %s (%s)", policy.Name, policy.Namespace))
+	}
+	sort.Strings(pendingPolicyNames)
+
 	status := "✅ ALLOWED"
 	if flow.sourceAction == "Deny" || flow.destAction == "Deny" {
 		status = "🚨 BLOCKED"
@@ -512,25 +547,29 @@ func (s *Service) convertToFlowSummary(flow *aggregatedFlow) types.FlowSummary {
 
 	return types.FlowSummary{
 		Source: types.FlowEndpoint{
-			Name:      flow.source,
-			Namespace: flow.sourceNamespace,
-			Action:    s.formatAction(flow.sourceAction),
-			Policies:  sourcePolicies,
+			Name:            flow.source,
+			Namespace:       flow.sourceNamespace,
+			Action:          s.formatAction(flow.sourceAction),
+			Policies:        sourcePolicies,
+			PendingPolicies: pendingPolicyNames,
 		},
 		Destination: types.FlowEndpoint{
-			Name:      flow.destination,
-			Namespace: flow.destNamespace,
-			Action:    s.formatAction(flow.destAction),
-			Policies:  destPolicies,
+			Name:            flow.destination,
+			Namespace:       flow.destNamespace,
+			Action:          s.formatAction(flow.destAction),
+			Policies:        destPolicies,
+			PendingPolicies: pendingPolicyNames,
 		},
 		Connection: types.ConnectionInfo{
 			Protocol: flow.protocol,
 			Port:     flow.port,
 		},
 		Enforcement: types.EnforcementInfo{
-			TotalPolicies:  len(flow.enforcedPolicies),
-			UniquePolicies: uniquePolicySlice,
-			PolicyDetails:  flow.enforcedPolicies,
+			TotalPolicies:        len(flow.enforcedPolicies),
+			UniquePolicies:       uniquePolicySlice,
+			PolicyDetails:        flow.enforcedPolicies,
+			TotalPendingPolicies: len(flow.pendingPolicies),
+			PendingPolicyDetails: flow.pendingPolicies,
 		},
 		Traffic: types.TrafficInfo{
 			Packets: types.TrafficMetric{
@@ -869,6 +908,7 @@ func (s *Service) calculateSecurityPosture(logs []types.FlowLog) types.SecurityP
 	allowedFlows := 0
 	deniedFlows := 0
 	uniquePolicies := make(map[string]bool)
+	uniquePendingPolicies := make(map[string]bool)
 
 	for _, log := range logs {
 		if log.Action == "Allow" {
@@ -877,13 +917,22 @@ func (s *Service) calculateSecurityPosture(logs []types.FlowLog) types.SecurityP
 			deniedFlows++
 		}
 
-		// Collect unique policies
+		// Collect unique enforced policies
 		for _, policy := range log.Policies.Enforced {
 			policyName := policy.Name
 			if policy.Namespace != "" {
 				policyName = fmt.Sprintf("%s.%s", policy.Namespace, policy.Name)
 			}
 			uniquePolicies[policyName] = true
+		}
+
+		// Collect unique pending policies
+		for _, policy := range log.Policies.Pending {
+			policyName := policy.Name
+			if policy.Namespace != "" {
+				policyName = fmt.Sprintf("%s.%s", policy.Namespace, policy.Name)
+			}
+			uniquePendingPolicies[policyName] = true
 		}
 	}
 
@@ -902,13 +951,22 @@ func (s *Service) calculateSecurityPosture(logs []types.FlowLog) types.SecurityP
 	}
 	sort.Strings(policyNames)
 
+	// Convert pending policy map to sorted slice
+	pendingPolicyNames := []string{}
+	for policy := range uniquePendingPolicies {
+		pendingPolicyNames = append(pendingPolicyNames, policy)
+	}
+	sort.Strings(pendingPolicyNames)
+
 	return types.SecurityPostureInfo{
-		TotalFlows:        totalFlows,
-		AllowedFlows:      allowedFlows,
-		AllowedPercentage: allowedPercentage,
-		DeniedFlows:       deniedFlows,
-		DeniedPercentage:  deniedPercentage,
-		ActivePolicies:    len(uniquePolicies),
-		UniquePolicyNames: policyNames,
+		TotalFlows:               totalFlows,
+		AllowedFlows:             allowedFlows,
+		AllowedPercentage:        allowedPercentage,
+		DeniedFlows:              deniedFlows,
+		DeniedPercentage:         deniedPercentage,
+		ActivePolicies:           len(uniquePolicies),
+		UniquePolicyNames:        policyNames,
+		PendingPolicies:          len(uniquePendingPolicies),
+		UniquePendingPolicyNames: pendingPolicyNames,
 	}
 }
