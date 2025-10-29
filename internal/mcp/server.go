@@ -66,6 +66,8 @@ func NewMCPServer(kubeconfigPath string) *MCPServer {
 
 // Run starts the MCP server
 func (s *MCPServer) Run(ctx context.Context) error {
+	// Ensure log output goes to stderr to avoid corrupting JSON-RPC on stdout
+	log.SetOutput(os.Stderr)
 	log.Println("Starting MCP server...")
 
 	scanner := bufio.NewScanner(s.input)
@@ -185,6 +187,28 @@ func (s *MCPServer) handleToolsList(req *MCPRequest) *MCPResponse {
 						"type":        "boolean",
 						"description": "Whether to setup port-forward first (default: true)",
 						"default":     true,
+					},
+				},
+			},
+		},
+		{
+			Name:        "get_aggregated_flow_logs",
+			Description: "Get aggregated and categorized flow logs with comprehensive traffic analysis including traffic overview, categories, top sources/destinations, namespace activity, and security posture",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"setup_port_forward": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Whether to setup port-forward first (default: true)",
+						"default":     true,
+					},
+					"start_time": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional start time filter (ISO8601 format)",
+					},
+					"end_time": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional end time filter (ISO8601 format)",
 					},
 				},
 			},
@@ -379,6 +403,8 @@ func (s *MCPServer) executeTool(ctx context.Context, name string, args map[strin
 		return s.setupPortForward(ctx, args)
 	case "get_flow_logs":
 		return s.getFlowLogs(ctx, args)
+	case "get_aggregated_flow_logs":
+		return s.getAggregatedFlowLogs(ctx, args)
 	case "analyze_namespace_flows":
 		return s.analyzeNamespaceFlows(ctx, args)
 	case "analyze_blocked_flows":
@@ -424,6 +450,7 @@ func (s *MCPServer) getFlowLogs(ctx context.Context, args map[string]interface{}
 	}
 
 	if setupPortForward {
+		log.Printf("[get_flow_logs] Setting up port-forward...")
 		if err := s.manager.Setup(ctx); err != nil {
 			return "", fmt.Errorf("failed to setup port-forward: %w", err)
 		}
@@ -440,6 +467,39 @@ func (s *MCPServer) getFlowLogs(ctx context.Context, args map[string]interface{}
 	}
 
 	return string(result), nil
+}
+
+func (s *MCPServer) getAggregatedFlowLogs(ctx context.Context, args map[string]interface{}) (string, error) {
+	setupPortForward := true
+	if setup, ok := args["setup_port_forward"].(bool); ok {
+		setupPortForward = setup
+	}
+
+	if setupPortForward {
+		log.Printf("[get_aggregated_flow_logs] Setting up port-forward...")
+		if err := s.manager.Setup(ctx); err != nil {
+			return "", fmt.Errorf("failed to setup port-forward: %w", err)
+		}
+	}
+
+	// Extract time parameters if provided
+	var startTime, endTime *string
+	if st, ok := args["start_time"].(string); ok && st != "" {
+		startTime = &st
+	}
+	if et, ok := args["end_time"].(string); ok && et != "" {
+		endTime = &et
+	}
+
+	report, err := s.service.GetAggregatedFlowReport(ctx, startTime, endTime)
+	if err != nil {
+		return "", fmt.Errorf("failed to get aggregated flow logs: %w", err)
+	}
+
+	// Format as Markdown for better LLM readability
+	result := s.service.FormatAggregateReportAsMarkdown(report)
+
+	return result, nil
 }
 
 func (s *MCPServer) analyzeNamespaceFlows(ctx context.Context, args map[string]interface{}) (string, error) {

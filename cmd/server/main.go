@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/aadhilam/mcp-whisker-go/internal/kubernetes"
@@ -30,6 +31,31 @@ func main() {
 		Long: `A Go implementation of the Calico Whisker MCP Server that provides 
 Model Context Protocol functionality for analyzing Calico Whisker flow logs 
 in Kubernetes environments.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Default to running as MCP server when no subcommand provided
+			kubeconfig := getKubeconfigPath()
+			server := mcp.NewMCPServer(kubeconfig)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Handle graceful shutdown
+			go func() {
+				sigChan := make(chan os.Signal, 1)
+				signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+				<-sigChan
+				cancel()
+			}()
+
+			// Log to stderr only, never to stdout (MCP uses stdout for JSON-RPC)
+			log.SetOutput(os.Stderr)
+			if debug {
+				log.Printf("MCP server starting with kubeconfig: %s\n", kubeconfig)
+			}
+
+			return server.Run(ctx)
+		},
+		SilenceUsage: true, // Don't show usage on error
 	}
 
 	// Add persistent flags
@@ -40,6 +66,7 @@ in Kubernetes environments.`,
 	// Add commands
 	rootCmd.AddCommand(setupPortForwardCmd())
 	rootCmd.AddCommand(getFlowsCmd())
+	rootCmd.AddCommand(getAggregatedFlowsCmd())
 	rootCmd.AddCommand(analyzeNamespaceCmd())
 	rootCmd.AddCommand(analyzeBlockedCmd())
 	rootCmd.AddCommand(checkServiceCmd())
@@ -122,6 +149,58 @@ func getFlowsCmd() *cobra.Command {
 			return nil
 		},
 	}
+	return cmd
+}
+
+func getAggregatedFlowsCmd() *cobra.Command {
+	var startTime, endTime string
+	var markdown bool
+
+	cmd := &cobra.Command{
+		Use:   "get-aggregated-flows",
+		Short: "Get aggregated and categorized flow logs with traffic analysis",
+		Long: `Retrieve flow logs from Whisker service and present them in an aggregated format
+with traffic categorization, top sources/destinations, namespace activity, and security posture.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			kubeconfig := getKubeconfigPath()
+			service := whisker.NewService(kubeconfig)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var startTimePtr, endTimePtr *string
+			if startTime != "" {
+				startTimePtr = &startTime
+			}
+			if endTime != "" {
+				endTimePtr = &endTime
+			}
+
+			report, err := service.GetAggregatedFlowReport(ctx, startTimePtr, endTimePtr)
+			if err != nil {
+				return fmt.Errorf("failed to get aggregated flow logs: %w", err)
+			}
+
+			if markdown {
+				// Output as formatted Markdown
+				output := service.FormatAggregateReportAsMarkdown(report)
+				fmt.Println(output)
+			} else {
+				// Output as JSON
+				output, err := json.MarshalIndent(report, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal report: %w", err)
+				}
+				fmt.Println(string(output))
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&startTime, "start-time", "", "Start time filter (ISO8601 format)")
+	cmd.Flags().StringVar(&endTime, "end-time", "", "End time filter (ISO8601 format)")
+	cmd.Flags().BoolVarP(&markdown, "markdown", "m", true, "Output in Markdown format (default: true)")
 	return cmd
 }
 
@@ -223,7 +302,7 @@ func checkServiceCmd() *cobra.Command {
 func serverCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "server",
-		Short: "Run as MCP server",
+		Short: "Run as MCP server (explicit command, same as default behavior)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			kubeconfig := getKubeconfigPath()
 			server := mcp.NewMCPServer(kubeconfig)
@@ -239,7 +318,12 @@ func serverCmd() *cobra.Command {
 				cancel()
 			}()
 
-			fmt.Fprintf(os.Stderr, "MCP server starting with kubeconfig: %s\n", kubeconfig)
+			// Log to stderr only
+			log.SetOutput(os.Stderr)
+			if debug {
+				log.Printf("MCP server starting with kubeconfig: %s\n", kubeconfig)
+			}
+
 			return server.Run(ctx)
 		},
 	}
@@ -248,6 +332,12 @@ func serverCmd() *cobra.Command {
 
 func getKubeconfigPath() string {
 	if kubeconfigPath != "" {
+		// Expand tilde (~) to home directory
+		if strings.HasPrefix(kubeconfigPath, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				return filepath.Join(home, kubeconfigPath[2:])
+			}
+		}
 		return kubeconfigPath
 	}
 

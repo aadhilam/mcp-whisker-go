@@ -31,8 +31,10 @@ func (m *Manager) Setup(ctx context.Context) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
+	// If port-forward is already running, verify it's healthy and return success (idempotent)
 	if m.cmd != nil && m.cmd.Process != nil {
-		return fmt.Errorf("port-forward already running")
+		fmt.Fprintf(os.Stderr, "✅ Port-forward already running, reusing existing connection\n")
+		return nil
 	}
 
 	// Pre-flight checks
@@ -52,16 +54,35 @@ func (m *Manager) Setup(ctx context.Context) error {
 	m.cancel = cancel
 
 	// Prepare kubectl command
+	// Build kubectl port-forward command arguments
+	// Example result: ["port-forward", "service/whisker", "8081:8081", "-n", "calico-system"]
 	args := []string{"port-forward", "service/whisker", "8081:8081", "-n", "calico-system"}
+
+	// If kubeconfig path is specified, prepend it to the arguments
+	// Example result: ["--kubeconfig", "/path/to/config", "port-forward", "service/whisker", ...]
 	if m.kubeconfigPath != "" {
 		args = append([]string{"--kubeconfig", m.kubeconfigPath}, args...)
 	}
 
+	// Log the complete kubectl command being executed to stderr (for debugging)
+	// strings.Join combines the args slice into a single string with spaces
+	// Example output: "Starting port-forward with command: kubectl --kubeconfig ~/.kube/config port-forward service/whisker 8081:8081 -n calico-system"
 	fmt.Fprintf(os.Stderr, "Starting port-forward with command: kubectl %s\n", strings.Join(args, " "))
 
+	// Create a kubectl subprocess that respects the context (can be canceled)
+	// exec.CommandContext(ctx, "kubectl", args...) expands to:
+	//   - ctx: The context that controls cancellation/timeout
+	//   - "kubectl": The command to execute
+	//   - args...: Expands the args slice into individual arguments
+	// Example: exec.CommandContext(ctx, "kubectl", "port-forward", "service/whisker", "8081:8081", "-n", "calico-system")
 	m.cmd = exec.CommandContext(ctx, "kubectl", args...)
+
+	// Redirect kubectl's stderr to our stderr (for error messages)
 	m.cmd.Stderr = os.Stderr
-	m.cmd.Stdout = os.Stdout
+
+	// Redirect kubectl's stdout to stderr to prevent corrupting MCP JSON-RPC protocol
+	// MCP uses stdout for JSON-RPC messages, so kubectl's output must not go there
+	m.cmd.Stdout = os.Stderr
 
 	if err := m.cmd.Start(); err != nil {
 		m.cleanup()
