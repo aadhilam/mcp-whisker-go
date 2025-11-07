@@ -13,12 +13,8 @@ func TestNewService(t *testing.T) {
 		t.Fatal("Expected service to be created, got nil")
 	}
 	
-	if service.baseURL != defaultWhiskerURL {
-		t.Errorf("Expected baseURL to be %s, got %s", defaultWhiskerURL, service.baseURL)
-	}
-	
-	if service.endpoint != defaultWhiskerEndpoint {
-		t.Errorf("Expected endpoint to be %s, got %s", defaultWhiskerEndpoint, service.endpoint)
+	if service.httpClient == nil {
+		t.Error("Expected httpClient to be initialized, got nil")
 	}
 	
 	if service.kubeconfigPath != "/path/to/kubeconfig" {

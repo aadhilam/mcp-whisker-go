@@ -2,9 +2,7 @@ package whisker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os/exec"
 	"sort"
 	"strings"
@@ -13,56 +11,23 @@ import (
 	"github.com/aadhilam/mcp-whisker-go/pkg/types"
 )
 
-const (
-	defaultWhiskerURL      = "http://127.0.0.1:8081"
-	defaultWhiskerEndpoint = "/whisker-backend/flows"
-)
-
 // Service provides access to Calico Whisker flow logs
 type Service struct {
-	baseURL        string
-	endpoint       string
-	client         *http.Client
+	httpClient     *HTTPClient
 	kubeconfigPath string
 }
 
 // NewService creates a new Whisker service client
 func NewService(kubeconfigPath string) *Service {
 	return &Service{
-		baseURL:        defaultWhiskerURL,
-		endpoint:       defaultWhiskerEndpoint,
+		httpClient:     NewHTTPClient(),
 		kubeconfigPath: kubeconfigPath,
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
 	}
 }
 
-// GetFlowLogs retrieves flow logs from Whisker service
+// GetFlowLogs retrieves flow logs from Whisker service (delegates to HTTPClient)
 func (s *Service) GetFlowLogs(ctx context.Context) ([]types.FlowLog, error) {
-	url := s.baseURL + s.endpoint
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("cannot connect to Calico Whisker. Please ensure port-forward is running: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("whisker service returned status %d", resp.StatusCode)
-	}
-
-	var response types.FlowLogsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return response.Items, nil
+	return s.httpClient.GetFlowLogs(ctx)
 }
 
 // GetNamespaceFlowSummary generates detailed flow analysis for a specific namespace
