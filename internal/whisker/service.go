@@ -10,22 +10,24 @@ import (
 
 // Service provides access to Calico Whisker flow logs
 type Service struct {
-	httpClient     *HTTPClient
-	policyAnalyzer *PolicyAnalyzer
-	analytics      *Analytics
-	flowAggregator *FlowAggregator
-	kubeconfigPath string
+	httpClient           *HTTPClient
+	policyAnalyzer       *PolicyAnalyzer
+	analytics            *Analytics
+	flowAggregator       *FlowAggregator
+	blockedFlowAnalyzer  *BlockedFlowAnalyzer
+	kubeconfigPath       string
 }
 
 // NewService creates a new Whisker service client
 func NewService(kubeconfigPath string) *Service {
 	policyAnalyzer := NewPolicyAnalyzer(kubeconfigPath)
 	return &Service{
-		httpClient:     NewHTTPClient(),
-		policyAnalyzer: policyAnalyzer,
-		analytics:      NewAnalytics(),
-		flowAggregator: NewFlowAggregator(policyAnalyzer),
-		kubeconfigPath: kubeconfigPath,
+		httpClient:          NewHTTPClient(),
+		policyAnalyzer:      policyAnalyzer,
+		analytics:           NewAnalytics(),
+		flowAggregator:      NewFlowAggregator(policyAnalyzer),
+		blockedFlowAnalyzer: NewBlockedFlowAnalyzer(policyAnalyzer),
+		kubeconfigPath:      kubeconfigPath,
 	}
 }
 
@@ -103,85 +105,9 @@ func (s *Service) generateFlowSummary(namespace string, logs []types.FlowLog) *t
 	return s.flowAggregator.GenerateFlowSummary(namespace, logs)
 }
 
+// analyzeBlockedFlows analyzes blocked flows and identifies blocking policies (delegates to BlockedFlowAnalyzer)
 func (s *Service) analyzeBlockedFlows(ctx context.Context, namespace string, blockedLogs []types.FlowLog) *types.BlockedFlowAnalysis {
-	uniqueConnections := make(map[string]bool)
-	blockedFlowDetails := make([]types.BlockedFlowDetail, 0, len(blockedLogs))
-
-	for _, log := range blockedLogs {
-		connectionKey := fmt.Sprintf("%s→%s:%d", log.SourceName, log.DestName, log.DestPort)
-		uniqueConnections[connectionKey] = true
-
-		blockingPolicies := s.extractBlockingPolicies(ctx, &log)
-
-		detail := types.BlockedFlowDetail{
-			Flow: types.BlockedFlowInfo{
-				Source:      fmt.Sprintf("%s (%s)", log.SourceName, log.SourceNamespace),
-				Destination: fmt.Sprintf("%s (%s)", log.DestName, log.DestNamespace),
-				Protocol:    log.Protocol,
-				Port:        log.DestPort,
-				Action:      log.Action,
-				Reporter:    log.Reporter,
-				TimeRange:   fmt.Sprintf("%s to %s", log.StartTime, log.EndTime),
-			},
-			Traffic: types.TrafficInfo{
-				Packets: types.TrafficMetric{
-					In:    log.PacketsIn,
-					Out:   log.PacketsOut,
-					Total: log.PacketsIn + log.PacketsOut,
-				},
-				Bytes: types.TrafficMetric{
-					In:    log.BytesIn,
-					Out:   log.BytesOut,
-					Total: log.BytesIn + log.BytesOut,
-				},
-			},
-			BlockingPolicies: blockingPolicies,
-			Analysis: types.FlowAnalysis{
-				TotalBlockingPolicies: len(blockingPolicies),
-				Recommendation:        s.generateRecommendation(blockingPolicies),
-			},
-		}
-
-		blockedFlowDetails = append(blockedFlowDetails, detail)
-	}
-
-	return &types.BlockedFlowAnalysis{
-		Namespace: namespace,
-		Analysis: types.BlockedFlowAnalysisInfo{
-			TotalBlockedFlows:        len(blockedLogs),
-			UniqueBlockedConnections: len(uniqueConnections),
-		},
-		BlockedFlows: blockedFlowDetails,
-		SecurityInsights: types.SecurityInsights{
-			Message: fmt.Sprintf("🚨 %d blocked flow(s) detected", len(blockedLogs)),
-			Recommendations: []string{
-				"Review each blocking policy to ensure it aligns with your security requirements",
-				"Consider if any blocked flows represent legitimate traffic that should be allowed",
-				"Verify that policy ordering and tier configuration are correct",
-				"Monitor for patterns that might indicate security threats or misconfigurations",
-			},
-		},
-	}
-}
-
-func (s *Service) extractBlockingPolicies(ctx context.Context, log *types.FlowLog) []types.BlockingPolicy {
-	return s.policyAnalyzer.ExtractBlockingPolicies(ctx, log)
-}
-
-func (s *Service) retrievePolicyDetails(ctx context.Context, policy *types.Policy) *string {
-	return s.policyAnalyzer.RetrievePolicyDetails(ctx, policy)
-}
-
-func (s *Service) mapPolicyKindToResource(kind string) string {
-	return s.policyAnalyzer.MapPolicyKindToResource(kind)
-}
-
-func (s *Service) getBlockingReason(action string) string {
-	return s.policyAnalyzer.GetBlockingReason(action)
-}
-
-func (s *Service) generateRecommendation(blockingPolicies []types.BlockingPolicy) string {
-	return s.policyAnalyzer.GenerateRecommendation(blockingPolicies)
+	return s.blockedFlowAnalyzer.AnalyzeBlockedFlows(ctx, namespace, blockedLogs)
 }
 
 // convertPolicyToDetail converts a Policy to PolicyDetail (delegates to PolicyAnalyzer)

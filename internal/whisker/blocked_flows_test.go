@@ -11,7 +11,7 @@ import (
 // TestExtractBlockingPolicies verifies that blocking policies are properly converted
 // to PolicyDetail to avoid circular reference issues during JSON marshaling
 func TestExtractBlockingPolicies(t *testing.T) {
-	service := NewService("")
+	policyAnalyzer := NewPolicyAnalyzer("")
 	ctx := context.Background()
 
 	tests := []struct {
@@ -152,7 +152,7 @@ func TestExtractBlockingPolicies(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			blockingPolicies := service.extractBlockingPolicies(ctx, tt.flowLog)
+			blockingPolicies := policyAnalyzer.ExtractBlockingPolicies(ctx, tt.flowLog)
 
 			if len(blockingPolicies) != tt.expected {
 				t.Errorf("Expected %d blocking policies, got %d", tt.expected, len(blockingPolicies))

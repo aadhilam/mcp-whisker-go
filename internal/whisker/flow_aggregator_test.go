@@ -282,7 +282,7 @@ func TestAggregateFlows_WithNetworkClassification(t *testing.T) {
 	logs := []types.FlowLog{
 		{
 			SourceName:      "10.0.0.5",
-			SourceNamespace: "",  // Empty namespace indicates external
+			SourceNamespace: "", // Empty namespace indicates external
 			DestName:        "8.8.8.8",
 			DestNamespace:   "",
 			Protocol:        "UDP",
