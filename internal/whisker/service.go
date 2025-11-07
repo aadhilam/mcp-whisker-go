@@ -3,31 +3,32 @@ package whisker
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/aadhilam/mcp-whisker-go/pkg/types"
 )
 
 // Service provides access to Calico Whisker flow logs
 type Service struct {
-	httpClient           *HTTPClient
-	policyAnalyzer       *PolicyAnalyzer
-	analytics            *Analytics
-	flowAggregator       *FlowAggregator
-	blockedFlowAnalyzer  *BlockedFlowAnalyzer
-	kubeconfigPath       string
+	httpClient              *HTTPClient
+	policyAnalyzer          *PolicyAnalyzer
+	analytics               *Analytics
+	flowAggregator          *FlowAggregator
+	blockedFlowAnalyzer     *BlockedFlowAnalyzer
+	securityPostureAnalyzer *SecurityPostureAnalyzer
+	kubeconfigPath          string
 }
 
 // NewService creates a new Whisker service client
 func NewService(kubeconfigPath string) *Service {
 	policyAnalyzer := NewPolicyAnalyzer(kubeconfigPath)
 	return &Service{
-		httpClient:          NewHTTPClient(),
-		policyAnalyzer:      policyAnalyzer,
-		analytics:           NewAnalytics(),
-		flowAggregator:      NewFlowAggregator(policyAnalyzer),
-		blockedFlowAnalyzer: NewBlockedFlowAnalyzer(policyAnalyzer),
-		kubeconfigPath:      kubeconfigPath,
+		httpClient:              NewHTTPClient(),
+		policyAnalyzer:          policyAnalyzer,
+		analytics:               NewAnalytics(),
+		flowAggregator:          NewFlowAggregator(policyAnalyzer),
+		blockedFlowAnalyzer:     NewBlockedFlowAnalyzer(policyAnalyzer),
+		securityPostureAnalyzer: NewSecurityPostureAnalyzer(),
+		kubeconfigPath:          kubeconfigPath,
 	}
 }
 
@@ -108,11 +109,6 @@ func (s *Service) generateFlowSummary(namespace string, logs []types.FlowLog) *t
 // analyzeBlockedFlows analyzes blocked flows and identifies blocking policies (delegates to BlockedFlowAnalyzer)
 func (s *Service) analyzeBlockedFlows(ctx context.Context, namespace string, blockedLogs []types.FlowLog) *types.BlockedFlowAnalysis {
 	return s.blockedFlowAnalyzer.AnalyzeBlockedFlows(ctx, namespace, blockedLogs)
-}
-
-// convertPolicyToDetail converts a Policy to PolicyDetail (delegates to PolicyAnalyzer)
-func (s *Service) convertPolicyToDetail(policy *types.Policy) types.PolicyDetail {
-	return s.policyAnalyzer.ConvertPolicyToDetail(policy)
 }
 
 // GetAggregatedFlowReport generates a comprehensive aggregated flow analysis report
@@ -204,71 +200,7 @@ func (s *Service) analyzeNamespaceActivity(logs []types.FlowLog) []types.Namespa
 	return s.analytics.AnalyzeNamespaceActivity(logs)
 }
 
-// calculateSecurityPosture analyzes overall security posture
+// calculateSecurityPosture analyzes overall security posture (delegates to SecurityPostureAnalyzer)
 func (s *Service) calculateSecurityPosture(logs []types.FlowLog) types.SecurityPostureInfo {
-	totalFlows := len(logs)
-	allowedFlows := 0
-	deniedFlows := 0
-	uniquePolicies := make(map[string]bool)
-	uniquePendingPolicies := make(map[string]bool)
-
-	for _, log := range logs {
-		if log.Action == "Allow" {
-			allowedFlows++
-		} else if log.Action == "Deny" {
-			deniedFlows++
-		}
-
-		// Collect unique enforced policies
-		for _, policy := range log.Policies.Enforced {
-			policyName := policy.Name
-			if policy.Namespace != "" {
-				policyName = fmt.Sprintf("%s.%s", policy.Namespace, policy.Name)
-			}
-			uniquePolicies[policyName] = true
-		}
-
-		// Collect unique pending policies
-		for _, policy := range log.Policies.Pending {
-			policyName := policy.Name
-			if policy.Namespace != "" {
-				policyName = fmt.Sprintf("%s.%s", policy.Namespace, policy.Name)
-			}
-			uniquePendingPolicies[policyName] = true
-		}
-	}
-
-	// Calculate percentages
-	allowedPercentage := 0.0
-	deniedPercentage := 0.0
-	if totalFlows > 0 {
-		allowedPercentage = (float64(allowedFlows) / float64(totalFlows)) * 100
-		deniedPercentage = (float64(deniedFlows) / float64(totalFlows)) * 100
-	}
-
-	// Convert policy map to sorted slice
-	policyNames := []string{}
-	for policy := range uniquePolicies {
-		policyNames = append(policyNames, policy)
-	}
-	sort.Strings(policyNames)
-
-	// Convert pending policy map to sorted slice
-	pendingPolicyNames := []string{}
-	for policy := range uniquePendingPolicies {
-		pendingPolicyNames = append(pendingPolicyNames, policy)
-	}
-	sort.Strings(pendingPolicyNames)
-
-	return types.SecurityPostureInfo{
-		TotalFlows:               totalFlows,
-		AllowedFlows:             allowedFlows,
-		AllowedPercentage:        allowedPercentage,
-		DeniedFlows:              deniedFlows,
-		DeniedPercentage:         deniedPercentage,
-		ActivePolicies:           len(uniquePolicies),
-		UniquePolicyNames:        policyNames,
-		PendingPolicies:          len(uniquePendingPolicies),
-		UniquePendingPolicyNames: pendingPolicyNames,
-	}
+	return s.securityPostureAnalyzer.CalculateSecurityPosture(logs)
 }

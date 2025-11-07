@@ -9,7 +9,7 @@ import (
 
 // TestConvertPolicyToDetail tests the conversion of Policy to PolicyDetail with trigger preservation
 func TestConvertPolicyToDetail(t *testing.T) {
-	service := &Service{}
+	policyAnalyzer := NewPolicyAnalyzer("")
 
 	tests := []struct {
 		name     string
@@ -82,7 +82,7 @@ func TestConvertPolicyToDetail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := service.convertPolicyToDetail(tt.policy)
+			result := policyAnalyzer.ConvertPolicyToDetail(tt.policy)
 
 			// Compare main fields
 			if result.Name != tt.expected.Name {

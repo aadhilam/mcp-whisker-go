@@ -31,6 +31,10 @@ func TestNewService(t *testing.T) {
 		t.Error("Expected blockedFlowAnalyzer to be initialized, got nil")
 	}
 
+	if service.securityPostureAnalyzer == nil {
+		t.Error("Expected securityPostureAnalyzer to be initialized, got nil")
+	}
+
 	if service.kubeconfigPath != "/path/to/kubeconfig" {
 		t.Errorf("Expected kubeconfigPath to be /path/to/kubeconfig, got %s", service.kubeconfigPath)
 	}
