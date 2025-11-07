@@ -3,7 +3,6 @@ package whisker
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +13,7 @@ import (
 // Service provides access to Calico Whisker flow logs
 type Service struct {
 	httpClient     *HTTPClient
+	policyAnalyzer *PolicyAnalyzer
 	kubeconfigPath string
 }
 
@@ -21,6 +21,7 @@ type Service struct {
 func NewService(kubeconfigPath string) *Service {
 	return &Service{
 		httpClient:     NewHTTPClient(),
+		policyAnalyzer: NewPolicyAnalyzer(kubeconfigPath),
 		kubeconfigPath: kubeconfigPath,
 	}
 }
@@ -286,107 +287,23 @@ func (s *Service) analyzeBlockedFlows(ctx context.Context, namespace string, blo
 }
 
 func (s *Service) extractBlockingPolicies(ctx context.Context, log *types.FlowLog) []types.BlockingPolicy {
-	blockingPolicies := make([]types.BlockingPolicy, 0)
-
-	// Check pending policies for triggers
-	for _, pendingPolicy := range log.Policies.Pending {
-		if pendingPolicy.Trigger != nil && pendingPolicy.Trigger.Name != "" {
-			policyYAML := s.retrievePolicyDetails(ctx, pendingPolicy.Trigger)
-
-			// Convert Policy to PolicyDetail to avoid circular references
-			triggerDetail := s.convertPolicyToDetail(pendingPolicy.Trigger)
-
-			blockingPolicy := types.BlockingPolicy{
-				TriggerPolicy:  &triggerDetail,
-				PolicyYAML:     policyYAML,
-				BlockingReason: s.getBlockingReason(pendingPolicy.Action),
-			}
-
-			blockingPolicies = append(blockingPolicies, blockingPolicy)
-		}
-	}
-
-	// Check enforced policies
-	for _, enforcedPolicy := range log.Policies.Enforced {
-		if enforcedPolicy.Action == "Deny" && enforcedPolicy.Trigger != nil && enforcedPolicy.Trigger.Name != "" {
-			policyYAML := s.retrievePolicyDetails(ctx, enforcedPolicy.Trigger)
-
-			// Convert Policy to PolicyDetail to avoid circular references
-			triggerDetail := s.convertPolicyToDetail(enforcedPolicy.Trigger)
-
-			blockingPolicy := types.BlockingPolicy{
-				TriggerPolicy:  &triggerDetail,
-				PolicyYAML:     policyYAML,
-				BlockingReason: "Enforced deny rule",
-			}
-
-			blockingPolicies = append(blockingPolicies, blockingPolicy)
-		}
-	}
-
-	return blockingPolicies
+	return s.policyAnalyzer.ExtractBlockingPolicies(ctx, log)
 }
 
 func (s *Service) retrievePolicyDetails(ctx context.Context, policy *types.Policy) *string {
-	if policy == nil {
-		return nil
-	}
-
-	resourceType := s.mapPolicyKindToResource(policy.Kind)
-	if resourceType == "" {
-		return nil
-	}
-
-	args := []string{"get", resourceType, policy.Name, "-o", "yaml"}
-
-	// Add namespace if specified and not a global policy
-	if policy.Namespace != "" && policy.Kind != "GlobalNetworkPolicy" {
-		args = append(args, "-n", policy.Namespace)
-	}
-
-	// Add kubeconfig if specified
-	if s.kubeconfigPath != "" {
-		args = append([]string{"--kubeconfig", s.kubeconfigPath}, args...)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "kubectl", args...)
-	output, err := cmd.Output()
-	if err != nil {
-		return nil
-	}
-
-	result := strings.TrimSpace(string(output))
-	return &result
+	return s.policyAnalyzer.RetrievePolicyDetails(ctx, policy)
 }
 
 func (s *Service) mapPolicyKindToResource(kind string) string {
-	switch kind {
-	case "CalicoNetworkPolicy":
-		return "caliconetworkpolicy"
-	case "NetworkPolicy":
-		return "networkpolicy"
-	case "GlobalNetworkPolicy":
-		return "globalnetworkpolicy"
-	default:
-		return ""
-	}
+	return s.policyAnalyzer.MapPolicyKindToResource(kind)
 }
 
 func (s *Service) getBlockingReason(action string) string {
-	if action == "Deny" {
-		return "Explicit deny rule"
-	}
-	return "End of tier default deny"
+	return s.policyAnalyzer.GetBlockingReason(action)
 }
 
 func (s *Service) generateRecommendation(blockingPolicies []types.BlockingPolicy) string {
-	if len(blockingPolicies) > 0 {
-		return "Review the identified policies to understand why traffic is being blocked. Consider modifying the policy rules if this traffic should be allowed."
-	}
-	return "No specific blocking policies identified. This may be due to default deny behavior or policy ordering."
+	return s.policyAnalyzer.GenerateRecommendation(blockingPolicies)
 }
 
 // Helper types for aggregation
@@ -411,46 +328,19 @@ type aggregatedFlow struct {
 	pendingPolicies  []types.PolicyDetail
 }
 
-// convertPolicyToDetail converts a Policy to PolicyDetail, preserving trigger chains
+// convertPolicyToDetail converts a Policy to PolicyDetail (delegates to PolicyAnalyzer)
 func (s *Service) convertPolicyToDetail(policy *types.Policy) types.PolicyDetail {
-	detail := types.PolicyDetail{
-		Name:        policy.Name,
-		Namespace:   policy.Namespace,
-		Kind:        policy.Kind,
-		Tier:        policy.Tier,
-		Action:      policy.Action,
-		PolicyIndex: policy.PolicyIndex,
-		RuleIndex:   policy.RuleIndex,
-	}
-
-	// Recursively convert trigger if present
-	if policy.Trigger != nil {
-		triggerDetail := s.convertPolicyToDetail(policy.Trigger)
-		detail.Trigger = &triggerDetail
-	}
-
-	return detail
+	return s.policyAnalyzer.ConvertPolicyToDetail(policy)
 }
 
 func (s *Service) aggregatePolicies(flow *aggregatedFlow, log *types.FlowLog) {
-	// Process enforced policies
-	for _, policy := range log.Policies.Enforced {
-		policyDetail := s.convertPolicyToDetail(&policy)
-		flow.enforcedPolicies = append(flow.enforcedPolicies, policyDetail)
-
-		policyName := fmt.Sprintf("%s (%s)", policy.Name, policy.Namespace)
-		if log.Reporter == "Src" {
-			flow.sourcePolicies[policyName] = true
-		} else if log.Reporter == "Dst" {
-			flow.destPolicies[policyName] = true
-		}
-	}
-
-	// Process pending policies
-	for _, policy := range log.Policies.Pending {
-		policyDetail := s.convertPolicyToDetail(&policy)
-		flow.pendingPolicies = append(flow.pendingPolicies, policyDetail)
-	}
+	s.policyAnalyzer.AggregatePolicies(
+		&flow.enforcedPolicies,
+		&flow.pendingPolicies,
+		flow.sourcePolicies,
+		flow.destPolicies,
+		log,
+	)
 }
 
 func (s *Service) updateActions(flow *aggregatedFlow, log *types.FlowLog) {
