@@ -105,7 +105,7 @@ func TestCalculateTopSources(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := analytics.CalculateTopSources(tt.logs)
-			
+
 			if len(result) != tt.expectedCount {
 				t.Errorf("Expected %d sources, got %d", tt.expectedCount, len(result))
 			}
@@ -156,7 +156,7 @@ func TestCalculateTopDestinations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := analytics.CalculateTopDestinations(tt.logs)
-			
+
 			if len(result) != tt.expectedCount {
 				t.Errorf("Expected %d destinations, got %d", tt.expectedCount, len(result))
 			}
@@ -217,7 +217,7 @@ func TestAnalyzeNamespaceActivity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := analytics.AnalyzeNamespaceActivity(tt.logs)
-			
+
 			if len(result) != tt.expectedCount {
 				t.Errorf("Expected %d namespaces, got %d", tt.expectedCount, len(result))
 			}
@@ -269,8 +269,8 @@ func TestCategorizeFlows(t *testing.T) {
 		{
 			name: "Database traffic",
 			logs: []types.FlowLog{
-				{DestPort: 3306, Protocol: "TCP", DestNamespace: "db"}, // MySQL
-				{DestPort: 5432, Protocol: "TCP", DestNamespace: "db"}, // PostgreSQL
+				{DestPort: 3306, Protocol: "TCP", DestNamespace: "db"},  // MySQL
+				{DestPort: 5432, Protocol: "TCP", DestNamespace: "db"},  // PostgreSQL
 				{DestPort: 27017, Protocol: "TCP", DestNamespace: "db"}, // MongoDB
 			},
 			expectedCats:  []string{"Database"},
@@ -302,7 +302,7 @@ func TestCategorizeFlows(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := analytics.CategorizeFlows(tt.logs)
-			
+
 			if len(result) < tt.minCategories {
 				t.Errorf("Expected at least %d categories, got %d", tt.minCategories, len(result))
 			}

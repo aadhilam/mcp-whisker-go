@@ -114,7 +114,8 @@ func TestConvertPolicyToDetail(t *testing.T) {
 
 // TestAggregatePolicies_WithPendingPolicies tests that pending policies are correctly aggregated
 func TestAggregatePolicies_WithPendingPolicies(t *testing.T) {
-	service := &Service{}
+	policyAnalyzer := NewPolicyAnalyzer("")
+	aggregator := NewFlowAggregator(policyAnalyzer)
 
 	flow := &aggregatedFlow{
 		sourcePolicies:   make(map[string]bool),
@@ -151,7 +152,7 @@ func TestAggregatePolicies_WithPendingPolicies(t *testing.T) {
 		},
 	}
 
-	service.aggregatePolicies(flow, log)
+	aggregator.aggregatePolicies(flow, log)
 
 	// Verify enforced policies were added
 	if len(flow.enforcedPolicies) != 1 {
@@ -187,7 +188,8 @@ func TestAggregatePolicies_WithPendingPolicies(t *testing.T) {
 
 // TestConvertToFlowSummary_WithPendingPolicies tests that pending policies are included in flow summary
 func TestConvertToFlowSummary_WithPendingPolicies(t *testing.T) {
-	service := &Service{}
+	policyAnalyzer := NewPolicyAnalyzer("")
+	aggregator := NewFlowAggregator(policyAnalyzer)
 
 	flow := &aggregatedFlow{
 		source:          "pod-a",
@@ -215,7 +217,7 @@ func TestConvertToFlowSummary_WithPendingPolicies(t *testing.T) {
 		},
 	}
 
-	summary := service.convertToFlowSummary(flow)
+	summary := aggregator.convertToFlowSummary(flow)
 
 	// Verify enforced policies count
 	if summary.Enforcement.TotalPolicies != 1 {
