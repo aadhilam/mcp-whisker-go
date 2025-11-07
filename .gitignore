@@ -42,6 +42,8 @@ temp/
 
 # Personal documentation
 aadreadme.md
+docs/development/
+docs/troubleshooting/
 
 # Obsidian vault files
 .obsidian/
