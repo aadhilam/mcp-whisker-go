@@ -58,39 +58,39 @@ graph TB
 graph TB
     subgraph "Service - Orchestrator (206 lines)"
         S[<b>Service</b>]
-        S_API["<b>Public API:</b><br/>• GetFlowLogs(ctx)<br/>• GetNamespaceFlowSummary(ctx, namespace)<br/>• AnalyzeBlockedFlows(ctx, namespace)<br/>• GetAggregatedFlowReport(ctx, startTime, endTime)"]
-        S_PRIV["<b>Private Delegation:</b><br/>• generateFlowSummary(namespace, logs)<br/>• analyzeBlockedFlows(ctx, namespace, logs)<br/>• determineTimeRange(logs)<br/>• aggregateFlows(logs)<br/>• categorizeFlows(logs)<br/>• calculateTopSources(logs)<br/>• calculateTopDestinations(logs)<br/>• analyzeNamespaceActivity(logs)<br/>• calculateSecurityPosture(logs)"]
+        S_API["<b>📋 Public API:</b><br/>• GetFlowLogs<br/>  ├─ Parameters: ctx<br/>  └─ Returns: []FlowLog, error<br/><br/>• GetNamespaceFlowSummary<br/>  ├─ Parameters: ctx, namespace<br/>  └─ Returns: *NamespaceFlowSummary, error<br/><br/>• AnalyzeBlockedFlows<br/>  ├─ Parameters: ctx, namespace<br/>  └─ Returns: *BlockedFlowAnalysis, error<br/><br/>• GetAggregatedFlowReport<br/>  ├─ Parameters: ctx, startTime, endTime<br/>  └─ Returns: *FlowAggregateReport, error"]
+        S_PRIV["<b>🔒 Private Delegation:</b><br/>• generateFlowSummary(...)<br/>• analyzeBlockedFlows(...)<br/>• determineTimeRange(...)<br/>• aggregateFlows(...)<br/>• categorizeFlows(...)<br/>• calculateTopSources(...)<br/>• calculateTopDestinations(...)<br/>• analyzeNamespaceActivity(...)<br/>• calculateSecurityPosture(...)"]
         S --> S_API
         S --> S_PRIV
     end
     
     subgraph "HTTPClient (61 lines)"
         HTTP[<b>HTTPClient</b>]
-        HTTP_API["<b>Public Methods:</b><br/>• GetFlowLogs(ctx) []FlowLog, error"]
+        HTTP_API["<b>📋 Public Methods:</b><br/>• GetFlowLogs<br/>  ├─ Parameters: ctx<br/>  └─ Returns: []FlowLog, error"]
         HTTP --> HTTP_API
     end
     
     subgraph "PolicyAnalyzer (183 lines)"
         PA[<b>PolicyAnalyzer</b>]
-        PA_API["<b>Public Methods:</b><br/>• ExtractBlockingPolicies(ctx, log) []BlockingPolicy<br/>• ConvertPolicyToDetail(policy) PolicyDetail<br/>• AggregatePolicies(logs) PolicyStats<br/>• GenerateRecommendation(policies) string<br/>• MapPolicyKindToResource(kind) string<br/>• GetBlockingReason(action) string<br/>• RetrievePolicyDetails(ctx, policy) *string"]
-        PA_HELP["<b>Helper Functions:</b><br/>• extractPoliciesFromLog(log) []Policy<br/>• getPolicyYAML(ctx, policy) string"]
+        PA_API["<b>📋 Public Methods:</b><br/>• ExtractBlockingPolicies<br/>  ├─ Parameters: ctx, log<br/>  └─ Returns: []BlockingPolicy<br/><br/>• ConvertPolicyToDetail<br/>  ├─ Parameters: policy<br/>  └─ Returns: PolicyDetail<br/><br/>• AggregatePolicies<br/>  ├─ Parameters: logs<br/>  └─ Returns: PolicyStats<br/><br/>• GenerateRecommendation<br/>  ├─ Parameters: policies<br/>  └─ Returns: string<br/><br/>• MapPolicyKindToResource<br/>  ├─ Parameters: kind<br/>  └─ Returns: string<br/><br/>• GetBlockingReason<br/>  ├─ Parameters: action<br/>  └─ Returns: string<br/><br/>• RetrievePolicyDetails<br/>  ├─ Parameters: ctx, policy<br/>  └─ Returns: *string"]
+        PA_HELP["<b>🔧 Helper Functions:</b><br/>• extractPoliciesFromLog(...)<br/>• getPolicyYAML(...)"]
         PA --> PA_API
         PA --> PA_HELP
     end
     
     subgraph "Analytics (187 lines)"
         AN[<b>Analytics</b>]
-        AN_API["<b>Public Methods:</b><br/>• DetermineTimeRange(logs) string<br/>• CalculateTopSources(logs) []TopTrafficEntity<br/>• CalculateTopDestinations(logs) []TopTrafficEntity<br/>• AnalyzeNamespaceActivity(logs) []NamespaceActivityInfo<br/>• CategorizeFlows(logs) []TrafficCategory"]
-        AN_HELP["<b>Helper Functions:</b><br/>• categorizeByProtocol(logs) map[string]int<br/>• categorizeByAction(logs) map[string]int<br/>• aggregateTrafficByEntity(logs, isSource) map[string]TrafficStats"]
+        AN_API["<b>📋 Public Methods:</b><br/>• DetermineTimeRange<br/>  ├─ Parameters: logs<br/>  └─ Returns: string<br/><br/>• CalculateTopSources<br/>  ├─ Parameters: logs<br/>  └─ Returns: []TopTrafficEntity<br/><br/>• CalculateTopDestinations<br/>  ├─ Parameters: logs<br/>  └─ Returns: []TopTrafficEntity<br/><br/>• AnalyzeNamespaceActivity<br/>  ├─ Parameters: logs<br/>  └─ Returns: []NamespaceActivityInfo<br/><br/>• CategorizeFlows<br/>  ├─ Parameters: logs<br/>  └─ Returns: []TrafficCategory"]
+        AN_HELP["<b>🔧 Helper Functions:</b><br/>• categorizeByProtocol(...)<br/>• categorizeByAction(...)<br/>• aggregateTrafficByEntity(...)"]
         AN --> AN_API
         AN --> AN_HELP
     end
     
     subgraph "FlowAggregator (370 lines)"
         FA[<b>FlowAggregator</b>]
-        FA_API["<b>Public Methods:</b><br/>• GenerateFlowSummary(namespace, logs) *NamespaceFlowSummary<br/>• AggregateFlows(logs) []AggregatedFlowEntry"]
-        FA_PRIV["<b>Private Methods:</b><br/>• convertToFlowSummary(flow) FlowSummary<br/>• aggregatePolicies(policies) PolicyStats<br/>• updateActions(flow, action, reporter)<br/>• formatAction(action) string"]
-        FA_HELP["<b>Helper Functions:</b><br/>• normalizeEntityName(name, namespace) string<br/>• getPrimaryPolicy(policies) string<br/>• formatBytes(bytes) string<br/>• formatPackets(packets) string<br/>• classifyNetworkType(ip) string"]
+        FA_API["<b>📋 Public Methods:</b><br/>• GenerateFlowSummary<br/>  ├─ Parameters: namespace, logs<br/>  └─ Returns: *NamespaceFlowSummary<br/><br/>• AggregateFlows<br/>  ├─ Parameters: logs<br/>  └─ Returns: []AggregatedFlowEntry"]
+        FA_PRIV["<b>🔒 Private Methods:</b><br/>• convertToFlowSummary(...)<br/>• aggregatePolicies(...)<br/>• updateActions(...)<br/>• formatAction(...)"]
+        FA_HELP["<b>🔧 Helper Functions:</b><br/>• normalizeEntityName(...)<br/>• getPrimaryPolicy(...)<br/>• formatBytes(...)<br/>• formatPackets(...)<br/>• classifyNetworkType(...)"]
         FA --> FA_API
         FA --> FA_PRIV
         FA --> FA_HELP
@@ -98,16 +98,16 @@ graph TB
     
     subgraph "BlockedFlowAnalyzer (92 lines)"
         BFA[<b>BlockedFlowAnalyzer</b>]
-        BFA_API["<b>Public Methods:</b><br/>• AnalyzeBlockedFlows(ctx, namespace, logs) *BlockedFlowAnalysis"]
-        BFA_PRIV["<b>Private Methods:</b><br/>• extractBlockingPolicies(ctx, log) []BlockingPolicy<br/>• generateRecommendation(policies) string"]
+        BFA_API["<b>📋 Public Methods:</b><br/>• AnalyzeBlockedFlows<br/>  ├─ Parameters: ctx, namespace, logs<br/>  └─ Returns: *BlockedFlowAnalysis"]
+        BFA_PRIV["<b>🔒 Private Methods:</b><br/>• extractBlockingPolicies(...)<br/>• generateRecommendation(...)"]
         BFA --> BFA_API
         BFA --> BFA_PRIV
     end
     
     subgraph "SecurityPostureAnalyzer (85 lines)"
         SPA[<b>SecurityPostureAnalyzer</b>]
-        SPA_API["<b>Public Methods:</b><br/>• CalculateSecurityPosture(logs) SecurityPostureInfo"]
-        SPA_HELP["<b>Helper Functions:</b><br/>• aggregatePolicyNames(policies, namespace) string<br/>• calculatePercentages(total, allowed, denied) (float64, float64)<br/>• sortPolicyNames(policies) []string"]
+        SPA_API["<b>📋 Public Methods:</b><br/>• CalculateSecurityPosture<br/>  ├─ Parameters: logs<br/>  └─ Returns: SecurityPostureInfo"]
+        SPA_HELP["<b>🔧 Helper Functions:</b><br/>• aggregatePolicyNames(...)<br/>• calculatePercentages(...)<br/>• sortPolicyNames(...)"]
         SPA --> SPA_API
         SPA --> SPA_HELP
     end
