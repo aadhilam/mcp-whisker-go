@@ -11,10 +11,40 @@ Add this to your Claude Desktop configuration file:
 {
   "mcpServers": {
     "calico-whisker": {
-      "command": "/Users/aadhilamajeed/Library/CloudStorage/OneDrive-Personal/k8/mcp-whisker-go/mcp-whisker",
+      "command": "/path/to/mcp-whisker-go/bin/mcp-whisker-go",
       "args": ["server"],
       "env": {
-        "KUBECONFIG": "/Users/aadhilamajeed/.kube/config"
+        "KUBECONFIG": "/path/to/your/.kube/config"
+      }
+    }
+  }
+}
+```
+
+**Example for macOS/Linux:**
+```json
+{
+  "mcpServers": {
+    "calico-whisker": {
+      "command": "/home/username/mcp-whisker-go/bin/mcp-whisker-go",
+      "args": ["server"],
+      "env": {
+        "KUBECONFIG": "/home/username/.kube/config"
+      }
+    }
+  }
+}
+```
+
+**Example for Windows:**
+```json
+{
+  "mcpServers": {
+    "calico-whisker": {
+      "command": "C:\\Users\\username\\mcp-whisker-go\\bin\\mcp-whisker-go.exe",
+      "args": ["server"],
+      "env": {
+        "KUBECONFIG": "C:\\Users\\username\\.kube\\config"
       }
     }
   }
@@ -29,11 +59,9 @@ Add this to your Claude Desktop configuration file:
 This error has been resolved. The Go binary now handles Claude Desktop's protocol requirements natively without wrapper scripts.
 
 ### Error: "Permission denied"
-Make sure the scripts are executable:
+Make sure the binary is executable:
 ```bash
-chmod +x mcp-whisker-server.sh
-chmod +x mcp-whisker-server.py
-chmod +x mcp-whisker
+chmod +x /path/to/mcp-whisker-go/bin/mcp-whisker-go
 ```
 
 ### Error: "Server disconnected" 
@@ -45,9 +73,9 @@ Check the Claude Desktop logs for specific errors. Common issues:
 ### Test the server manually:
 ```bash
 # Test with direct binary
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | ./mcp-whisker server
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | /path/to/mcp-whisker-go/bin/mcp-whisker-go server
 
-# Or use the test suite
+# Or use the test suite (from project root)
 cd tests && python3 quick_test.py
 ```
 
@@ -61,10 +89,10 @@ cd tests && python3 quick_test.py
   "mcp.servers": [
     {
       "name": "calico-whisker",
-      "command": "/path/to/your/mcp-whisker",
+      "command": "/path/to/mcp-whisker-go/bin/mcp-whisker-go",
       "args": ["server"],
       "env": {
-        "KUBECONFIG": "/path/to/your/kubeconfig"
+        "KUBECONFIG": "/path/to/.kube/config"
       }
     }
   ]
@@ -83,10 +111,10 @@ Add to your `.continue/config.json`:
   "mcpServers": [
     {
       "name": "calico-whisker",
-      "command": "/path/to/your/mcp-whisker",
+      "command": "/path/to/mcp-whisker-go/bin/mcp-whisker-go",
       "args": ["server"],
       "env": {
-        "KUBECONFIG": "/path/to/your/kubeconfig"
+        "KUBECONFIG": "/path/to/.kube/config"
       }
     }
   ]
@@ -100,10 +128,10 @@ For any MCP client that supports external servers:
 ```json
 {
   "server": {
-    "command": "/path/to/your/mcp-whisker",
+    "command": "/path/to/mcp-whisker-go/bin/mcp-whisker-go",
     "args": ["server"],
     "env": {
-      "KUBECONFIG": "/path/to/your/kubeconfig"
+      "KUBECONFIG": "/path/to/.kube/config"
     }
   }
 }
@@ -131,9 +159,9 @@ After configuring, you can ask Claude:
 
 ## Troubleshooting
 
-1. **Command not found**: Make sure the path to `mcp-whisker` executable is absolute
-2. **Kubeconfig issues**: Ensure the KUBECONFIG environment variable points to a valid kubeconfig file
-3. **Permission denied**: Make sure the `mcp-whisker` executable has execute permissions (`chmod +x mcp-whisker`)
+1. **Command not found**: Make sure the path to `mcp-whisker-go` executable is absolute and correct
+2. **Kubeconfig issues**: Ensure the KUBECONFIG environment variable points to a valid kubeconfig file (typically `~/.kube/config`)
+3. **Permission denied**: Make sure the `mcp-whisker-go` executable has execute permissions (`chmod +x /path/to/bin/mcp-whisker-go`)
 4. **Connection issues**: Verify you have access to the Kubernetes cluster and the calico-system namespace
 
 ## Testing the Server
@@ -141,7 +169,7 @@ After configuring, you can ask Claude:
 You can test the MCP server manually using stdio:
 
 ```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | ./mcp-whisker server
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | /path/to/mcp-whisker-go/bin/mcp-whisker-go server
 ```
 
 This should return an initialization response confirming the server is working.
