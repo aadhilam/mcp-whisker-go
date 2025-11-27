@@ -33,13 +33,25 @@ func NewHTTPClient() *HTTPClient {
 	}
 }
 
-// GetFlowLogs retrieves flow logs from Whisker service
-func (h *HTTPClient) GetFlowLogs(ctx context.Context) ([]types.FlowLog, error) {
+// GetFlowLogs retrieves flow logs from Whisker service with optional time filtering
+func (h *HTTPClient) GetFlowLogs(ctx context.Context, startTimeGte, startTimeLt *int) ([]types.FlowLog, error) {
 	url := h.baseURL + h.endpoint
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add query parameters for time filtering if provided
+	if startTimeGte != nil || startTimeLt != nil {
+		q := req.URL.Query()
+		if startTimeGte != nil {
+			q.Add("startTimeGte", fmt.Sprintf("%d", *startTimeGte))
+		}
+		if startTimeLt != nil {
+			q.Add("startTimeLt", fmt.Sprintf("%d", *startTimeLt))
+		}
+		req.URL.RawQuery = q.Encode()
 	}
 
 	resp, err := h.client.Do(req)

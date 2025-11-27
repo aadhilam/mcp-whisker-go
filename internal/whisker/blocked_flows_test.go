@@ -160,14 +160,14 @@ func TestExtractBlockingPolicies(t *testing.T) {
 
 			// Verify that each blocking policy can be marshaled to JSON without errors
 			for i, bp := range blockingPolicies {
-				if bp.TriggerPolicy == nil {
-					t.Errorf("BlockingPolicy[%d].TriggerPolicy is nil", i)
+				if bp.Policy == nil {
+					t.Errorf("BlockingPolicy[%d].Policy is nil", i)
 					continue
 				}
 
-				// Verify the trigger policy is a PolicyDetail (not Policy)
-				if bp.TriggerPolicy.Name == "" {
-					t.Errorf("BlockingPolicy[%d].TriggerPolicy.Name is empty", i)
+				// Verify the main policy is a PolicyDetail (not Policy)
+				if bp.Policy.Name == "" {
+					t.Errorf("BlockingPolicy[%d].Policy.Name is empty", i)
 				}
 
 				// Test JSON marshaling to ensure no circular references
@@ -184,9 +184,9 @@ func TestExtractBlockingPolicies(t *testing.T) {
 					continue
 				}
 
-				// Verify trigger is preserved after unmarshal
-				if unmarshaled.TriggerPolicy == nil {
-					t.Errorf("BlockingPolicy[%d].TriggerPolicy is nil after unmarshal", i)
+				// Verify policy is preserved after unmarshal
+				if unmarshaled.Policy == nil {
+					t.Errorf("BlockingPolicy[%d].Policy is nil after unmarshal", i)
 				}
 			}
 		})
@@ -219,6 +219,13 @@ func TestAnalyzeBlockedFlowsJSONMarshaling(t *testing.T) {
 				},
 				BlockingPolicies: []types.BlockingPolicy{
 					{
+						Policy: &types.PolicyDetail{
+							Name:      "staged-deny",
+							Namespace: "security",
+							Kind:      "CalicoNetworkPolicy",
+							Tier:      "security",
+							Action:    "Pass",
+						},
 						TriggerPolicy: &types.PolicyDetail{
 							Name:      "deny-all",
 							Namespace: "security",
@@ -268,6 +275,14 @@ func TestAnalyzeBlockedFlowsJSONMarshaling(t *testing.T) {
 	}
 
 	bp := unmarshaled.BlockedFlows[0].BlockingPolicies[0]
+	if bp.Policy == nil {
+		t.Error("Policy is nil after unmarshal")
+	} else {
+		if bp.Policy.Name != "staged-deny" {
+			t.Errorf("Expected main policy name 'staged-deny', got '%s'", bp.Policy.Name)
+		}
+	}
+
 	if bp.TriggerPolicy == nil {
 		t.Error("TriggerPolicy is nil after unmarshal")
 	} else {

@@ -208,7 +208,7 @@ func (fa *FlowAggregator) convertToFlowSummary(flow *aggregatedFlow) types.FlowS
 	sort.Strings(pendingPolicyNames)
 
 	status := "✅ ALLOWED"
-	if flow.sourceAction == "Deny" || flow.destAction == "Deny" {
+	if strings.EqualFold(flow.sourceAction, "Deny") || strings.EqualFold(flow.destAction, "Deny") {
 		status = "🚨 BLOCKED"
 	}
 

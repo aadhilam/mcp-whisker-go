@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/aadhilam/mcp-whisker-go/internal/kubernetes"
 	"github.com/aadhilam/mcp-whisker-go/internal/mcp"
@@ -168,15 +169,24 @@ with traffic categorization, top sources/destinations, namespace activity, and s
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			var startTimePtr, endTimePtr *string
+			// Convert ISO8601 timestamps to relative seconds if provided
+			var startTimeGte, startTimeLt *int
 			if startTime != "" {
-				startTimePtr = &startTime
+				relTime, err := convertISO8601ToRelativeSeconds(startTime)
+				if err != nil {
+					return fmt.Errorf("invalid start-time format: %w", err)
+				}
+				startTimeGte = &relTime
 			}
 			if endTime != "" {
-				endTimePtr = &endTime
+				relTime, err := convertISO8601ToRelativeSeconds(endTime)
+				if err != nil {
+					return fmt.Errorf("invalid end-time format: %w", err)
+				}
+				startTimeLt = &relTime
 			}
 
-			report, err := service.GetAggregatedFlowReport(ctx, startTimePtr, endTimePtr)
+			report, err := service.GetAggregatedFlowReport(ctx, startTimeGte, startTimeLt)
 			if err != nil {
 				return fmt.Errorf("failed to get aggregated flow logs: %w", err)
 			}
@@ -536,6 +546,20 @@ func k8sCheckKubeconfigCmd() *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+// convertISO8601ToRelativeSeconds converts an ISO8601 timestamp to relative seconds from now
+// Returns negative values for past times (e.g., -300 for 5 minutes ago)
+func convertISO8601ToRelativeSeconds(iso8601Str string) (int, error) {
+	parsedTime, err := time.Parse(time.RFC3339, iso8601Str)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse ISO8601 timestamp: %w", err)
+	}
+
+	now := time.Now()
+	diffSeconds := int(parsedTime.Sub(now).Seconds())
+
+	return diffSeconds, nil
 }
 
 func init() {

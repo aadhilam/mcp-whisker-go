@@ -3,6 +3,7 @@ package whisker
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/aadhilam/mcp-whisker-go/pkg/types"
 )
@@ -34,7 +35,12 @@ func NewService(kubeconfigPath string) *Service {
 
 // GetFlowLogs retrieves flow logs from Whisker service (delegates to HTTPClient)
 func (s *Service) GetFlowLogs(ctx context.Context) ([]types.FlowLog, error) {
-	return s.httpClient.GetFlowLogs(ctx)
+	return s.httpClient.GetFlowLogs(ctx, nil, nil)
+}
+
+// GetFlowLogsWithTimeFilter retrieves flow logs with time filtering from Whisker service
+func (s *Service) GetFlowLogsWithTimeFilter(ctx context.Context, startTimeGte, startTimeLt *int) ([]types.FlowLog, error) {
+	return s.httpClient.GetFlowLogs(ctx, startTimeGte, startTimeLt)
 }
 
 // GetNamespaceFlowSummary generates detailed flow analysis for a specific namespace
@@ -67,16 +73,23 @@ func (s *Service) GetNamespaceFlowSummary(ctx context.Context, namespace string)
 }
 
 // AnalyzeBlockedFlows analyzes blocked flows in the specified namespace
+// This includes flows that are currently blocked (Action="Deny") and flows that
+// would be blocked by staged/pending policies (pending policies with Action="Deny")
 func (s *Service) AnalyzeBlockedFlows(ctx context.Context, namespace string) (*types.BlockedFlowAnalysis, error) {
 	allLogs, err := s.GetFlowLogs(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Filter for blocked flows
+	// Filter for blocked flows (currently blocked OR would be blocked by pending policies)
 	blockedLogs := make([]types.FlowLog, 0)
 	for _, log := range allLogs {
-		if log.Action == "Deny" {
+		isBlocked := strings.EqualFold(log.Action, "Deny")
+
+		// Check if there are pending policies that would block this flow
+		hasPendingDeny := s.hasPendingDenyPolicy(&log)
+
+		if isBlocked || hasPendingDeny {
 			if namespace == "" || log.SourceNamespace == namespace || log.DestNamespace == namespace {
 				blockedLogs = append(blockedLogs, log)
 			}
@@ -101,6 +114,21 @@ func (s *Service) AnalyzeBlockedFlows(ctx context.Context, namespace string) (*t
 	return s.analyzeBlockedFlows(ctx, namespace, blockedLogs), nil
 }
 
+// hasPendingDenyPolicy checks if a flow has any pending policies that would deny traffic
+func (s *Service) hasPendingDenyPolicy(log *types.FlowLog) bool {
+	for _, policy := range log.Policies.Pending {
+		// Check if the pending policy itself is a Deny
+		if strings.EqualFold(policy.Action, "Deny") {
+			return true
+		}
+		// Check if the policy has a trigger that is a Deny
+		if policy.Trigger != nil && strings.EqualFold(policy.Trigger.Action, "Deny") {
+			return true
+		}
+	}
+	return false
+}
+
 // generateFlowSummary generates a comprehensive namespace flow summary (delegates to FlowAggregator)
 func (s *Service) generateFlowSummary(namespace string, logs []types.FlowLog) *types.NamespaceFlowSummary {
 	return s.flowAggregator.GenerateFlowSummary(namespace, logs)
@@ -112,9 +140,9 @@ func (s *Service) analyzeBlockedFlows(ctx context.Context, namespace string, blo
 }
 
 // GetAggregatedFlowReport generates a comprehensive aggregated flow analysis report
-func (s *Service) GetAggregatedFlowReport(ctx context.Context, startTime, endTime *string) (*types.FlowAggregateReport, error) {
-	// Fetch all flow logs
-	allLogs, err := s.GetFlowLogs(ctx)
+func (s *Service) GetAggregatedFlowReport(ctx context.Context, startTimeGte, startTimeLt *int) (*types.FlowAggregateReport, error) {
+	// Fetch flow logs with time filters
+	allLogs, err := s.GetFlowLogsWithTimeFilter(ctx, startTimeGte, startTimeLt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch flow logs: %w", err)
 	}
@@ -136,28 +164,24 @@ func (s *Service) GetAggregatedFlowReport(ctx context.Context, startTime, endTim
 		}, nil
 	}
 
-	// Filter by time range if provided (for future enhancement)
-	filteredLogs := allLogs
-	// TODO: Implement time filtering when needed
-
 	// Determine time range
-	timeRange := s.determineTimeRange(filteredLogs)
+	timeRange := s.determineTimeRange(allLogs)
 
 	// Aggregate flows
-	aggregatedEntries := s.aggregateFlows(filteredLogs)
+	aggregatedEntries := s.aggregateFlows(allLogs)
 
 	// Categorize traffic
-	trafficByCategory := s.categorizeFlows(filteredLogs)
+	trafficByCategory := s.categorizeFlows(allLogs)
 
 	// Calculate top sources and destinations
-	topSources := s.calculateTopSources(filteredLogs)
-	topDestinations := s.calculateTopDestinations(filteredLogs)
+	topSources := s.calculateTopSources(allLogs)
+	topDestinations := s.calculateTopDestinations(allLogs)
 
 	// Analyze namespace activity
-	namespaceActivity := s.analyzeNamespaceActivity(filteredLogs)
+	namespaceActivity := s.analyzeNamespaceActivity(allLogs)
 
 	// Calculate security posture
-	securityPosture := s.calculateSecurityPosture(filteredLogs)
+	securityPosture := s.calculateSecurityPosture(allLogs)
 
 	return &types.FlowAggregateReport{
 		TimeRange:         timeRange,

@@ -3,6 +3,7 @@ package whisker
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/aadhilam/mcp-whisker-go/pkg/types"
 )
@@ -24,9 +25,9 @@ func (sp *SecurityPostureAnalyzer) CalculateSecurityPosture(logs []types.FlowLog
 	uniquePendingPolicies := make(map[string]bool)
 
 	for _, log := range logs {
-		if log.Action == "Allow" {
+		if strings.EqualFold(log.Action, "Allow") {
 			allowedFlows++
-		} else if log.Action == "Deny" {
+		} else if strings.EqualFold(log.Action, "Deny") {
 			deniedFlows++
 		}
 

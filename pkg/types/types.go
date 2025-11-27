@@ -209,14 +209,17 @@ type BlockedFlowInfo struct {
 	Action      string `json:"action"`
 	Reporter    string `json:"reporter"`
 	TimeRange   string `json:"timeRange"`
+	BlockStatus string `json:"blockStatus"` // "currently_blocked" or "staged_block"
 }
 
 // BlockingPolicy represents a policy that blocked traffic
 type BlockingPolicy struct {
-	TriggerPolicy  *PolicyDetail `json:"triggerPolicy"`
-	PolicyYAML     *string       `json:"policyYaml,omitempty"`
-	Error          *string       `json:"error,omitempty"`
-	BlockingReason string        `json:"blockingReason"`
+	Policy            *PolicyDetail `json:"policy"`                      // The main policy (enforced or pending)
+	PolicyYAML        *string       `json:"policyYaml,omitempty"`        // YAML of the main policy
+	TriggerPolicy     *PolicyDetail `json:"triggerPolicy"`               // The trigger policy responsible for the block (if different from main policy)
+	TriggerPolicyYAML *string       `json:"triggerPolicyYaml,omitempty"` // YAML of the trigger policy
+	Error             *string       `json:"error,omitempty"`
+	BlockingReason    string        `json:"blockingReason"`
 }
 
 // FlowAnalysis represents analysis results for a flow

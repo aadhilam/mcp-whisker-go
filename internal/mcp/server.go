@@ -202,13 +202,13 @@ func (s *MCPServer) handleToolsList(req *MCPRequest) *MCPResponse {
 						"description": "Whether to setup port-forward first (default: true)",
 						"default":     true,
 					},
-					"start_time": map[string]interface{}{
-						"type":        "string",
-						"description": "Optional start time filter (ISO8601 format)",
+					"start_time_gte": map[string]interface{}{
+						"type":        "integer",
+						"description": "Optional start time filter in relative seconds from now (e.g., -300 for 5 minutes ago, -3600 for 1 hour ago). Use negative values for past times.",
 					},
-					"end_time": map[string]interface{}{
-						"type":        "string",
-						"description": "Optional end time filter (ISO8601 format)",
+					"start_time_lt": map[string]interface{}{
+						"type":        "integer",
+						"description": "Optional end time filter in relative seconds from now (e.g., 0 for now, -60 for 1 minute ago). Use negative values for past times.",
 					},
 				},
 			},
@@ -482,16 +482,19 @@ func (s *MCPServer) getAggregatedFlowLogs(ctx context.Context, args map[string]i
 		}
 	}
 
-	// Extract time parameters if provided
-	var startTime, endTime *string
-	if st, ok := args["start_time"].(string); ok && st != "" {
-		startTime = &st
+	// Extract relative time parameters if provided
+	var startTimeGte, startTimeLt *int
+	if st, ok := args["start_time_gte"].(float64); ok {
+		// JSON numbers are float64 by default
+		val := int(st)
+		startTimeGte = &val
 	}
-	if et, ok := args["end_time"].(string); ok && et != "" {
-		endTime = &et
+	if et, ok := args["start_time_lt"].(float64); ok {
+		val := int(et)
+		startTimeLt = &val
 	}
 
-	report, err := s.service.GetAggregatedFlowReport(ctx, startTime, endTime)
+	report, err := s.service.GetAggregatedFlowReport(ctx, startTimeGte, startTimeLt)
 	if err != nil {
 		return "", fmt.Errorf("failed to get aggregated flow logs: %w", err)
 	}

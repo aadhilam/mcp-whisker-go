@@ -218,3 +218,99 @@ func TestPolicyAnalyzer_ExtractBlockingPolicies(t *testing.T) {
 		t.Errorf("Expected blocking reason 'Explicit deny rule', got %s", blockingPolicies[0].BlockingReason)
 	}
 }
+
+// TestMapPolicyKindToResource_AllSupportedKinds tests all supported policy kinds
+func TestMapPolicyKindToResource_AllSupportedKinds(t *testing.T) {
+	policyAnalyzer := NewPolicyAnalyzer("")
+
+	testCases := []struct {
+		kind     string
+		expected string
+	}{
+		{"CalicoNetworkPolicy", "caliconetworkpolicy"},
+		{"NetworkPolicy", "networkpolicy"},
+		{"GlobalNetworkPolicy", "globalnetworkpolicy"},
+		{"StagedNetworkPolicy", "stagednetworkpolicy"},
+		{"StagedGlobalNetworkPolicy", "stagedglobalnetworkpolicy"},
+		{"StagedKubernetesNetworkPolicy", "stagedkubernetesnetworkpolicy"},
+		{"UnknownKind", ""},
+		{"", ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.kind, func(t *testing.T) {
+			result := policyAnalyzer.MapPolicyKindToResource(tc.kind)
+			if result != tc.expected {
+				t.Errorf("Expected resource type '%s' for kind '%s', got '%s'", tc.expected, tc.kind, result)
+			}
+		})
+	}
+}
+
+// TestRetrievePolicyDetails_SpecialKinds tests special policy kinds that don't exist in cluster
+func TestRetrievePolicyDetails_SpecialKinds(t *testing.T) {
+	policyAnalyzer := NewPolicyAnalyzer("")
+	ctx := context.Background()
+
+	testCases := []struct {
+		name     string
+		policy   *types.Policy
+		contains string // What the returned YAML should contain
+	}{
+		{
+			name: "EndOfTier policy",
+			policy: &types.Policy{
+				Kind:   "EndOfTier",
+				Name:   "end-of-tier-marker",
+				Tier:   "default",
+				Action: "Deny",
+			},
+			contains: "EndOfTier",
+		},
+		{
+			name: "Profile policy",
+			policy: &types.Policy{
+				Kind: "Profile",
+				Name: "kns.namespace-name",
+			},
+			contains: "Profile",
+		},
+		{
+			name: "Unknown kind",
+			policy: &types.Policy{
+				Kind: "UnknownPolicyKind",
+				Name: "test-policy",
+			},
+			contains: "Unknown policy kind",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := policyAnalyzer.RetrievePolicyDetails(ctx, tc.policy)
+
+			if result == nil {
+				t.Error("Expected non-nil result for special policy kinds")
+				return
+			}
+
+			if !containsString(*result, tc.contains) {
+				t.Errorf("Expected result to contain '%s', got: %s", tc.contains, *result)
+			}
+		})
+	}
+}
+
+// Helper function to check if a string contains a substring
+func containsString(s, substr string) bool {
+	return len(s) >= len(substr) && indexOfString(s, substr) >= 0
+}
+
+func indexOfString(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}

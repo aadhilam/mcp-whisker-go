@@ -72,22 +72,56 @@ func (p *PolicyAnalyzer) AggregatePolicies(
 }
 
 // ExtractBlockingPolicies identifies and extracts blocking policies from a flow log
+// Returns both the main policy and the trigger policy responsible for the block
+// Also retrieves the actual policy YAML from the cluster for both policies
 func (p *PolicyAnalyzer) ExtractBlockingPolicies(ctx context.Context, log *types.FlowLog) []types.BlockingPolicy {
 	blockingPolicies := []types.BlockingPolicy{}
 
 	// Check pending policies first (staged policies that would block)
 	for _, policy := range log.Policies.Pending {
-		if policy.Action == "Deny" || (policy.Trigger != nil && policy.Trigger.Action == "Deny") {
+		if strings.EqualFold(policy.Action, "Deny") {
+			// Direct deny in pending policy
 			policyDetail := p.ConvertPolicyToDetail(&policy)
 
 			blockingPolicy := types.BlockingPolicy{
-				TriggerPolicy:  &policyDetail,
+				Policy:         &policyDetail,
 				BlockingReason: p.GetBlockingReason(policy.Action),
 			}
 
-			// Try to get YAML details
+			// Check if there's a trigger - even deny policies can have triggers
+			if policy.Trigger != nil {
+				triggerDetail := p.ConvertPolicyToDetail(policy.Trigger)
+				blockingPolicy.TriggerPolicy = &triggerDetail
+
+				// Retrieve YAML for the trigger policy
+				if triggerYaml := p.RetrievePolicyDetails(ctx, policy.Trigger); triggerYaml != nil {
+					blockingPolicy.TriggerPolicyYAML = triggerYaml
+				}
+			}
+
+			// Retrieve YAML for the main policy from the cluster
 			if yamlDetails := p.RetrievePolicyDetails(ctx, &policy); yamlDetails != nil {
 				blockingPolicy.PolicyYAML = yamlDetails
+			}
+
+			blockingPolicies = append(blockingPolicies, blockingPolicy)
+		} else if policy.Trigger != nil && strings.EqualFold(policy.Trigger.Action, "Deny") {
+			// Trigger causes the deny
+			policyDetail := p.ConvertPolicyToDetail(&policy)
+			triggerDetail := p.ConvertPolicyToDetail(policy.Trigger)
+
+			blockingPolicy := types.BlockingPolicy{
+				Policy:         &policyDetail,
+				TriggerPolicy:  &triggerDetail,
+				BlockingReason: p.GetBlockingReason(policy.Trigger.Action),
+			}
+
+			// Retrieve YAML for both the main policy and the trigger policy
+			if mainYaml := p.RetrievePolicyDetails(ctx, &policy); mainYaml != nil {
+				blockingPolicy.PolicyYAML = mainYaml
+			}
+			if triggerYaml := p.RetrievePolicyDetails(ctx, policy.Trigger); triggerYaml != nil {
+				blockingPolicy.TriggerPolicyYAML = triggerYaml
 			}
 
 			blockingPolicies = append(blockingPolicies, blockingPolicy)
@@ -96,17 +130,49 @@ func (p *PolicyAnalyzer) ExtractBlockingPolicies(ctx context.Context, log *types
 
 	// Check enforced policies
 	for _, policy := range log.Policies.Enforced {
-		if policy.Action == "Deny" || (policy.Trigger != nil && policy.Trigger.Action == "Deny") {
+		if strings.EqualFold(policy.Action, "Deny") {
+			// Direct deny in enforced policy
 			policyDetail := p.ConvertPolicyToDetail(&policy)
 
 			blockingPolicy := types.BlockingPolicy{
-				TriggerPolicy:  &policyDetail,
+				Policy:         &policyDetail,
 				BlockingReason: p.GetBlockingReason(policy.Action),
 			}
 
-			// Try to get YAML details
+			// Check if there's a trigger - even deny policies can have triggers
+			if policy.Trigger != nil {
+				triggerDetail := p.ConvertPolicyToDetail(policy.Trigger)
+				blockingPolicy.TriggerPolicy = &triggerDetail
+
+				// Retrieve YAML for the trigger policy
+				if triggerYaml := p.RetrievePolicyDetails(ctx, policy.Trigger); triggerYaml != nil {
+					blockingPolicy.TriggerPolicyYAML = triggerYaml
+				}
+			}
+
+			// Retrieve YAML for the main policy from the cluster
 			if yamlDetails := p.RetrievePolicyDetails(ctx, &policy); yamlDetails != nil {
 				blockingPolicy.PolicyYAML = yamlDetails
+			}
+
+			blockingPolicies = append(blockingPolicies, blockingPolicy)
+		} else if policy.Trigger != nil && strings.EqualFold(policy.Trigger.Action, "Deny") {
+			// Trigger causes the deny
+			policyDetail := p.ConvertPolicyToDetail(&policy)
+			triggerDetail := p.ConvertPolicyToDetail(policy.Trigger)
+
+			blockingPolicy := types.BlockingPolicy{
+				Policy:         &policyDetail,
+				TriggerPolicy:  &triggerDetail,
+				BlockingReason: p.GetBlockingReason(policy.Trigger.Action),
+			}
+
+			// Retrieve YAML for both the main policy and the trigger policy
+			if mainYaml := p.RetrievePolicyDetails(ctx, &policy); mainYaml != nil {
+				blockingPolicy.PolicyYAML = mainYaml
+			}
+			if triggerYaml := p.RetrievePolicyDetails(ctx, policy.Trigger); triggerYaml != nil {
+				blockingPolicy.TriggerPolicyYAML = triggerYaml
 			}
 
 			blockingPolicies = append(blockingPolicies, blockingPolicy)
@@ -122,9 +188,22 @@ func (p *PolicyAnalyzer) RetrievePolicyDetails(ctx context.Context, policy *type
 		return nil
 	}
 
+	// Special case: EndOfTier is not a real policy object in the cluster
+	if policy.Kind == "EndOfTier" || policy.Kind == "Profile" {
+		// These are system-generated markers, not actual policy objects
+		explanation := fmt.Sprintf("# %s Policy\n# This is a system-generated %s marker, not a retrievable cluster resource.\n", policy.Kind, policy.Kind)
+		if policy.Kind == "EndOfTier" {
+			explanation += fmt.Sprintf("# Tier: %s\n# Action: %s\n# This represents the default action at the end of tier '%s'.\n", policy.Tier, policy.Action, policy.Tier)
+		} else if policy.Kind == "Profile" {
+			explanation += fmt.Sprintf("# Name: %s\n# This represents a Calico profile for the workload.\n", policy.Name)
+		}
+		return &explanation
+	}
+
 	resourceType := p.MapPolicyKindToResource(policy.Kind)
 	if resourceType == "" {
-		return nil
+		errMsg := fmt.Sprintf("# Unknown policy kind: %s\n# Unable to retrieve policy details from cluster.\n", policy.Kind)
+		return &errMsg
 	}
 
 	args := []string{"get", resourceType, policy.Name, "-o", "yaml"}
@@ -145,7 +224,9 @@ func (p *PolicyAnalyzer) RetrievePolicyDetails(ctx context.Context, policy *type
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
 	output, err := cmd.Output()
 	if err != nil {
-		return nil
+		// Return error message instead of nil
+		errMsg := fmt.Sprintf("# Error retrieving policy %s/%s\n# kubectl error: %v\n", policy.Namespace, policy.Name, err)
+		return &errMsg
 	}
 
 	result := strings.TrimSpace(string(output))
@@ -161,6 +242,12 @@ func (p *PolicyAnalyzer) MapPolicyKindToResource(kind string) string {
 		return "networkpolicy"
 	case "GlobalNetworkPolicy":
 		return "globalnetworkpolicy"
+	case "StagedNetworkPolicy":
+		return "stagednetworkpolicy"
+	case "StagedGlobalNetworkPolicy":
+		return "stagedglobalnetworkpolicy"
+	case "StagedKubernetesNetworkPolicy":
+		return "stagedkubernetesnetworkpolicy"
 	default:
 		return ""
 	}
@@ -168,7 +255,7 @@ func (p *PolicyAnalyzer) MapPolicyKindToResource(kind string) string {
 
 // GetBlockingReason returns a human-readable reason for why traffic was blocked
 func (p *PolicyAnalyzer) GetBlockingReason(action string) string {
-	if action == "Deny" {
+	if strings.EqualFold(action, "Deny") {
 		return "Explicit deny rule"
 	}
 	return "End of tier default deny"
