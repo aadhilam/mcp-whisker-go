@@ -85,6 +85,10 @@ The service expects:
 - Service accessible on port 8081
 - kubectl access with permissions to port-forward and read network policies
 
+## MCP Client Setup
+
+For detailed instructions on configuring MCP Whisker with various MCP clients (Claude Desktop, VS Code, Continue.dev, etc.), see the [MCP Client Setup Guide](docs/user-guide/MCP_CLIENT_SETUP.md).
+
 ## Development
 
 ```bash
